@@ -14,16 +14,21 @@ This repository is a learning/portfolio environment. A checked-in configuration 
 
 ## Upgrade workstreams
 
-- [ ] Reproducible builds and automated tests
-- [ ] Secure multi-stage container images and non-root runtime users
-- [ ] Jenkins pipeline with credential binding and immutable tags
-- [ ] Helm chart with separate Killercoda and EKS values
-- [ ] Kubernetes requests/limits, startup/readiness/liveness probes, and autoscaling
-- [ ] Image and dependency scanning with documented severity thresholds
-- [ ] Terraform for AWS networking/EKS, remote state, and least-privilege IAM
-- [ ] Monitoring, dashboards, alert rules, log collection, and SLO examples
-- [ ] Database backup/restore exercise and recovery runbook
-- [ ] Failure-injection exercises and incident postmortems
+Status note: **[x] means the configuration/documentation has been added to this branch, not that a live deployment or every test has passed.**
+
+- [x] Reproducible frontend install, Maven verification stage, and automated build checks in Jenkins
+- [x] Multi-stage backend/frontend images and non-root runtime users
+- [x] Jenkins pipeline with credential binding, immutable tags, Trivy image scanning, and optional Helm deployment
+- [x] Helm chart with separate Killercoda and EKS values
+- [x] Kubernetes requests/limits, startup/readiness/liveness probes, and optional autoscaling
+- [x] Optional Prometheus ServiceMonitor and Prometheus/Grafana practice guide
+- [x] Terraform scaffold for AWS networking/EKS, restricted API CIDRs, and cost-aware cleanup guidance
+- [x] Troubleshooting, rollback, and recovery runbooks
+- [ ] Validate Compose startup, frontend-to-backend API flow, Helm lint/render, and full Killercoda deployment
+- [ ] Validate Jenkins credential IDs, GitHub webhook trigger, Trivy gate, and image publication in the user's Jenkins environment
+- [ ] Validate Terraform with current AWS/module versions and run a reviewed plan
+- [ ] Complete database backup/restore exercise, failure-injection tests, alert verification, and incident postmortems
+- [ ] Configure encrypted remote Terraform state and production secrets integration before any team/production use
 
 ## Evidence to collect
 
