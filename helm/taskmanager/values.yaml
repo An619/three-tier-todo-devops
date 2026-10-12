@@ -81,6 +81,11 @@ ingress:
   host: ""
   pathType: Prefix
 
+monitoring:
+  serviceMonitor:
+    enabled: false
+    additionalLabels: {}
+
 podAnnotations: {}
 nodeSelector: {}
 tolerations: []
