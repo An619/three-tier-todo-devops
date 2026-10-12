@@ -11,6 +11,7 @@ This directory is an infrastructure-as-code starting point for the later EKS pha
 - Set an AWS Budget/cost alert before creating resources.
 - Review every resource in the plan. EKS, EC2 nodes, NAT Gateway, EBS, load balancers, public IPv4 addresses, and data transfer may be billable.
 - The example uses local Terraform state. Do not use local state for a shared/team environment; configure an encrypted, versioned S3 backend with appropriate locking before collaboration.
+- The lab grants the EBS CSI managed policy to the node role so the EBS CSI add-on can provision the Helm chart's database volume. For production, replace this with a dedicated Pod Identity/IRSA role.
 
 ## Initialize and plan
 
