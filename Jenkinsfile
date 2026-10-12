@@ -135,13 +135,19 @@ pipeline {
                         string(credentialsId: 'mysql-app-password', variable: 'MYSQL_APP_PASSWORD')
                     ]) {
                         sh '''
-                            set -eu
                             set +x
+                            set -eu
                             kubectl create namespace taskmanager --dry-run=client -o yaml | kubectl apply -f -
+                            secret_dir="$(mktemp -d)"
+                            trap 'rm -rf "$secret_dir"' EXIT
+                            umask 077
+                            printf '%s' "$MYSQL_ROOT_PASSWORD" > "$secret_dir/mysql-root-password"
+                            printf '%s' 'taskapp' > "$secret_dir/db-username"
+                            printf '%s' "$MYSQL_APP_PASSWORD" > "$secret_dir/db-password"
                             kubectl create secret generic taskmanager-db -n taskmanager \
-                              --from-literal=mysql-root-password="$MYSQL_ROOT_PASSWORD" \
-                              --from-literal=db-username=taskapp \
-                              --from-literal=db-password="$MYSQL_APP_PASSWORD" \
+                              --from-file=mysql-root-password="$secret_dir/mysql-root-password" \
+                              --from-file=db-username="$secret_dir/db-username" \
+                              --from-file=db-password="$secret_dir/db-password" \
                               --dry-run=client -o yaml | kubectl apply -f -
                             helm lint ./helm/taskmanager -f "./helm/taskmanager/values-$DEPLOY_ENV.yaml"
                             helm upgrade --install todo ./helm/taskmanager \
@@ -151,7 +157,7 @@ pipeline {
                               --set image.backend.tag="$IMAGE_TAG" \
                               --set image.frontend.repository="$DOCKERHUB_USERNAME/three-tier-todo-frontend" \
                               --set image.frontend.tag="$IMAGE_TAG" \
-                              --wait --timeout 5m
+                              --wait --timeout 10m
                             kubectl rollout status deployment/todo-taskmanager-backend -n taskmanager --timeout=300s
                             kubectl rollout status deployment/todo-taskmanager-frontend -n taskmanager --timeout=300s
                             kubectl get pods,services -n taskmanager -o wide
