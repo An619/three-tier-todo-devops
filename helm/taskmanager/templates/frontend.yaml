@@ -2,6 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "taskmanager.fullname" . }}-frontend
+  {{- if .Values.ingress.enabled }}
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /
+  {{- end }}
   labels:
     {{- include "taskmanager.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
