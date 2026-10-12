@@ -51,3 +51,8 @@ variable "tags" {
     ManagedBy   = "Terraform"
   }
 }
+
+variable "cluster_endpoint_public_access_cidrs" {
+  description = "Public IPv4 CIDR ranges allowed to reach the EKS API. Set this to your current public IP /32, not 0.0.0.0/0."
+  type        = list(string)
+}
