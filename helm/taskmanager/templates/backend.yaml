@@ -78,7 +78,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "taskmanager.fullname" . }}-backend
+  name: backend-service
   labels:
     {{- include "taskmanager.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
