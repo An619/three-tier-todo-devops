@@ -7,6 +7,7 @@ This directory is an infrastructure-as-code starting point for the later EKS pha
 - Confirm the EKS Kubernetes version is supported in your region.
 - Install Terraform and AWS CLI; configure AWS credentials locally using an IAM identity with only the permissions needed for this lab.
 - Never put AWS access keys in this repository or in `terraform.tfvars`.
+- Replace the example `cluster_endpoint_public_access_cidrs` with your own public IP in CIDR form (usually `x.x.x.x/32`). Never leave the API open to `0.0.0.0/0`.
 - Set an AWS Budget/cost alert before creating resources.
 - Review every resource in the plan. EKS, EC2 nodes, NAT Gateway, EBS, load balancers, public IPv4 addresses, and data transfer may be billable.
 - The example uses local Terraform state. Do not use local state for a shared/team environment; configure an encrypted, versioned S3 backend with appropriate locking before collaboration.
