@@ -1,0 +1,29 @@
+# Requires AWS Load Balancer Controller, metrics-server, suitable node capacity,
+# and a default/dedicated EBS StorageClass. Confirm AWS costs before deployment.
+mysql:
+  persistence:
+    enabled: true
+    size: 8Gi
+
+autoscaling:
+  frontend:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+  backend:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+  host: ""
+  pathType: Prefix
