@@ -1,0 +1,87 @@
+nameOverride: ""
+fullnameOverride: ""
+replicaCount:
+  frontend: 2
+  backend: 2
+
+image:
+  frontend:
+    repository: 17rj/three-tier-todo-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  backend:
+    repository: 17rj/three-tier-todo-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+service:
+  frontend:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  backend:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8085
+
+database:
+  name: taskdb
+  servicePort: 3306
+  image: mysql:8.0
+  secretName: taskmanager-db
+  rootPasswordKey: mysql-root-password
+  usernameKey: db-username
+  passwordKey: db-password
+
+mysql:
+  persistence:
+    enabled: true
+    storageClassName: ""
+    size: 8Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+resources:
+  frontend:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  backend:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+autoscaling:
+  frontend:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+  backend:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: false
+  className: alb
+  annotations: {}
+  host: ""
+  pathType: Prefix
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
