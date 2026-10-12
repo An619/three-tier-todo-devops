@@ -1,0 +1,6 @@
+apiVersion: v2
+name: taskmanager
+description: Three-tier Task Manager application for Kubernetes learning and deployment practice
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
