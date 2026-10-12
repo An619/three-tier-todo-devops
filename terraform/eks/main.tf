@@ -57,6 +57,9 @@ module "eks" {
       before_compute = true
       most_recent    = true
     }
+    aws-ebs-csi-driver = {
+      most_recent = true
+    }
   }
 
   eks_managed_node_groups = {
@@ -64,6 +67,12 @@ module "eks" {
       name           = "taskmanager-lab"
       instance_types = [var.node_instance_type]
       ami_type       = "AL2023_x86_64_STANDARD"
+
+      # Lab convenience: grants EBS CSI permissions to the node role.
+      # For production, prefer a dedicated Pod Identity/IRSA role for the CSI driver.
+      iam_role_additional_policies = {
+        AmazonEBSCSIDriverPolicy = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      }
 
       min_size     = var.node_min_size
       desired_size = var.node_desired_size
