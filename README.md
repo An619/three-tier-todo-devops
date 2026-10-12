@@ -1,729 +1,134 @@
-# 🛡️ DevSecOps Three-Tier Todo Application Pipeline
+# Three-Tier Todo — DevOps Engineering Lab
 
-A **production-grade DevSecOps pipeline** for a Three-Tier Todo Application, demonstrating end-to-end security integration from code to deployment on AWS EKS with ALB Ingress.
+A React/Vite frontend, Spring Boot REST API, and MySQL database used to practise a realistic DevOps delivery workflow. This repository is based on the application from [17J/Three-Tier-Todo-Application](https://github.com/17J/Three-Tier-Todo-Application), with a separate DevOps engineering upgrade branch.
 
-[![Pipeline Status](https://img.shields.io/badge/Pipeline-Passing-success)]()
-[![Security Scan](https://img.shields.io/badge/Security-Enabled-blue)]()
-[![Kubernetes](https://img.shields.io/badge/K8s-EKS-orange)]()
-[![ALB Ingress](https://img.shields.io/badge/ALB-Enabled-green)]()
+> **Status:** the `upgrade/production-ready-devops` branch contains a proposed upgrade that still needs runtime validation. Do not describe it as production-ready until the build, security gates, deployment, monitoring, rollback, and recovery exercises have actually passed.
 
----
+## Architecture
 
-## 📋 Overview
-
-This project showcases a **complete DevSecOps Three-Tier pipeline** with multiple security scanning tools integrated at every stage—from secret detection to container vulnerability scanning—before deploying to AWS EKS with Application Load Balancer (ALB) Ingress Controller.
-
----
-
-## 🏗️ Architecture Overview
-
-### Three-Tier Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                  ALB Ingress Controller             │
-│           (Internet-facing Load Balancer)           │
-└──────────────────┬──────────────────────────────────┘
-                   │
-         ┌─────────┴─────────┐
-         │                   │
-    ┌────▼────┐        ┌────▼────┐
-    │Frontend │        │Backend  │
-    │(React)  │───────▶│(Java)   │
-    │Service  │        │Service  │
-    └─────────┘        └────┬────┘
-                            │
-                       ┌────▼────┐
-                       │Database │
-                       │(MySQL)  │
-                       └─────────┘
+```mermaid
+flowchart LR
+    Dev[Developer] -->|Git push| GH[GitHub]
+    GH -->|Webhook| J[Jenkins]
+    J --> T[Tests and quality checks]
+    T --> B[Build container images]
+    B --> S[Trivy vulnerability scan]
+    S --> R[Docker Hub]
+    R --> H[Helm]
+    H --> K[Kubernetes: Killercoda or EKS]
+    K --> F[Frontend: Nginx]
+    F --> API[Spring Boot API]
+    API --> DB[(MySQL)]
+    API --> M[Prometheus metrics]
+    M --> G[Grafana dashboards]
 ```
 
-### Pipeline Flow
+## What the upgrade adds
 
-<p align="center">
-    <img src="snapshot/Pipeline_Flow.jpeg" alt="DevSecOps Pipeline Flow"/>
-</p>
+- Jenkins pipeline that checks out the configured SCM branch, runs Maven verification and frontend lint/build, creates immutable image tags, scans images with Trivy, publishes images through Jenkins credentials, and optionally deploys with Helm.
+- Multi-stage container builds, a non-root backend runtime, unprivileged Nginx frontend, and same-origin `/api` routing.
+- Docker Compose health checks, service networking, and startup ordering.
+- Helm chart for frontend, backend, and MySQL with probes, resource requests/limits, externalized database credentials, optional HPA, ALB Ingress, and Prometheus ServiceMonitor.
+- Terraform scaffold for AWS VPC/EKS, with endpoint CIDR restriction and cost-aware cleanup instructions.
+- Runbooks for Kubernetes troubleshooting, rollback/recovery, and monitoring.
 
----
+## Repository layout
 
-## 🔧 Tech Stack
-
-### **Application Layer**
-
-```
-Frontend (Tier 1):
-├── React.js          # UI Framework
-├── Node.js     # JavaScript Runtime
-└── npm               # Package Manager
-
-Backend (Tier 2):
-├── JDK 17          # Java Development Kit
-├── Maven           # Build Tool
-└── Spring Boot       # Backend Framework
-
-Database (Tier 3):
-└── MySQL             # Relational Database
+```text
+backend/                       Spring Boot API and Dockerfile
+frontend/                      React/Vite UI, Nginx config and Dockerfile
+docker-compose.yml             Local three-tier stack
+Jenkinsfile                    CI/CD pipeline
+helm/taskmanager/              Helm chart and Killercoda/EKS values
+terraform/eks/                 Terraform VPC/EKS lab scaffold
+monitoring/                    Prometheus/Grafana practice guide
+docs/                          Setup guides, roadmap and runbooks
+K8s/                           Legacy Kubernetes examples; not canonical
+azure-pipelines.yml             Legacy pipeline example
 ```
 
-### **DevOps & Infrastructure**
+## 1. Local validation with Docker Compose
 
-```
-CI/CD:
-├── Jenkins           # Pipeline Orchestration
-├── Git/GitHub        # Version Control
-└── kubectl           # Kubernetes CLI
-
-Containerization:
-├── Docker            # Container Platform
-└── Docker Hub        # Container Registry (17rj)
-
-Orchestration:
-├── AWS EKS           # Managed Kubernetes (ap-south-1)
-├── ALB Ingress       # Application Load Balancer Controller
-└── RBAC              # Role-Based Access Control
-
-Artifact Repository:
-└── Nexus             # Artifact Management
-```
-
-### **Security Tools (DevSecOps)**
-
-```
-Secret Scanning:
-└── TruffleHog        # Detect hardcoded secrets in Git
-
-Dependency Scanning (SCA):
-├── Snyk              # Software Composition Analysis
-└── OWASP Dependency  # Check known vulnerabilities
-
-Code Quality (SAST):
-└── SonarQube         # Static Application Security Testing
-
-Container Security:
-└── Dockle            # Docker Image Best Practices Linter
-
-Dynamic Testing (DAST):
-└── OWASP ZAP         # Web Application Security Scanner
-```
-
----
-
-## 🚀 Complete Pipeline Stages (23 Stages)
-
-| Stage # | Stage Name              | Tool/Action | Purpose                              | Status |
-| ------- | ----------------------- | ----------- | ------------------------------------ | ------ |
-| 1       | Clean Workspace         | Jenkins     | Clean previous build artifacts       | ✅     |
-| 2       | Checkout Code           | Git         | Clone repository from GitHub         | ✅     |
-| 3       | Frontend Compilation    | Node.js     | Validate JavaScript syntax           | ✅     |
-| 4       | Backend Compilation     | Maven       | Compile Java source code             | ✅     |
-| 5       | TruffleHog Secret Scan  | TruffleHog  | Detect secrets in Git history        | ✅     |
-| 6       | Snyk Frontend SCA       | Snyk        | Scan npm dependencies                | ✅     |
-| 7       | Snyk Backend SCA        | Snyk        | Scan Maven dependencies              | ✅     |
-| 8       | SonarQube Code Analysis | SonarQube   | SAST - Code quality & security       | ✅     |
-| 9       | Quality Gate            | SonarQube   | Enforce quality standards            | ✅     |
-| 10      | Build Artifact          | Maven       | Package backend JAR file             | ✅     |
-| 11      | Publish to Nexus        | Nexus       | Upload artifacts to repository       | ✅     |
-| 12      | OWASP Dependency Check  | OWASP DP    | Check for vulnerable dependencies    | ✅     |
-| 13      | Docker Build Frontend   | Docker      | Build frontend container image       | ✅     |
-| 14      | Docker Build Backend    | Docker      | Build backend container image        | ✅     |
-| 15      | Docker Tag Images       | Docker      | Tag images for registry              | ✅     |
-| 16      | Dockle Frontend Scan    | Dockle      | Scan frontend image security         | ✅     |
-| 17      | Dockle Backend Scan     | Dockle      | Scan backend image security          | ✅     |
-| 18      | Push Docker Images      | Docker Hub  | Push to container registry           | ✅     |
-| 19      | Kubernetes Deploy       | kubectl     | Deploy to EKS cluster                | ✅     |
-| 20      | Retrieve ALB URL        | kubectl     | Get Application Load Balancer URL    | ✅     |
-| 21      | Kubernetes Verify       | kubectl     | Verify all resources running         | ✅     |
-| 22      | OWASP ZAP Security Scan | ZAP         | Dynamic application security testing | ✅     |
-| 23      | Cleanup                 | Docker      | Remove old images                    | ✅     |
-
----
-
-## 🛠️ Prerequisites
-
-### **1. Infrastructure Requirements**
-
-#### **AWS EKS Cluster**
+Requirements: Git, Docker Engine, and Docker Compose v2.
 
 ```bash
-# Cluster Configuration
-Name: expdevops-cluster
-Region: ap-south-1 (Mumbai)
-Kubernetes Version: 1.28+
-Node Type: t3.medium (minimum)
-Nodes: 2-3 worker nodes
+git clone --branch upgrade/production-ready-devops --single-branch https://github.com/An619/three-tier-todo-devops.git
+cd three-tier-todo-devops
+
+docker compose config
+docker compose up -d --build
+docker compose ps
+curl -fsS http://localhost:8085/actuator/health
+curl -I http://localhost:3000
 ```
 
-#### **AWS Load Balancer Controller**
+Open `http://localhost:3000` for the UI. API calls go through Nginx to the backend service. Compose has local-only fallback passwords for disposable practice; set strong local values before using it outside a lab.
+
+Useful commands:
 
 ```bash
-# ALB Ingress Controller must be installed
-Version: v2.7.0+
-IAM OIDC Provider: Enabled
-Service Account: aws-load-balancer-controller
-Namespace: kube-system
-
-# Required IAM Permissions:
-- ec2:DescribeRouteTables
-- ec2:DescribeSubnets
-- ec2:DescribeSecurityGroups
-- elasticloadbalancing:*
+docker compose logs -f
+docker compose logs -f backend
+docker compose logs -f mysql
+docker compose down
 ```
 
-**Setup Guide:** See [ALB Controller Installation](#alb-controller-setup)
+Only use `docker compose down -v` when you intentionally want to delete the local MySQL volume and all data stored in it.
 
-### **2. Jenkins Configuration**
+## 2. Practise on Killercoda first
 
-#### **Required Plugins**
+Follow [docs/deploy-killercoda.md](docs/deploy-killercoda.md) for the step-by-step sequence:
 
-```
-✓ Pipeline Plugin
-✓ Git Plugin
-✓ Docker Pipeline Plugin
-✓ Kubernetes CLI Plugin
-✓ SonarQube Scanner Plugin
-✓ OWASP Dependency-Check Plugin
-✓ Config File Provider Plugin
-✓ Snyk Security Plugin
-✓ Credentials Plugin
-```
+1. Build and verify the application locally.
+2. Build and push uniquely tagged images to your Docker Hub account.
+3. Create the `taskmanager-db` Secret outside Git.
+4. Run `helm lint` and install the chart with `values-killercoda.yaml`.
+5. Verify Pods, Services, logs, events, and the UI using port-forward/web preview.
+6. Clean up the Helm release and namespace.
 
-#### **Tool Configuration**
+The Killercoda values use ephemeral database storage, so data can be lost if the MySQL Pod is recreated.
 
-```
-Jenkins → Global Tool Configuration:
+## 3. Jenkins pipeline
 
-JDK:
-  Name: jdk-17.0
-  Install automatically: Yes
-  Version: JDK 17.0.10
+See [docs/jenkins-setup.md](docs/jenkins-setup.md) before running Jenkins. The agent needs Git, JDK 17, Maven, Node.js/npm, Docker daemon access, Trivy, Helm, and kubectl for deployment stages.
 
-Maven:
-  Name: maven-3.9
-  Install automatically: Yes
-  Version: 3.9.6
+Create the documented Jenkins credentials before enabling publishing or deployment:
 
-NodeJS:
-  Name: nodejs-23.9
-  Install automatically: Yes
-  Version: 23.9.0
+- `dockerhub-creds` — Docker Hub username and access token.
+- `kubeconfig-killercoda` and/or `kubeconfig-eks` — kubeconfig secret files.
+- `mysql-root-password` and `mysql-app-password` — secret-text credentials used to provision the database Secret.
 
-SonarQube Scanner:
-  Name: sonar-scanner
-  Install automatically: Yes
-  Version: Latest
-```
+Configure the Jenkins job to use this repository and branch, then set up a secure GitHub webhook if Jenkins is reachable from GitHub. Start with `DEPLOY_ENV=none`; only enable publishing/deployment after the test and scan stages pass. The frontend lint stage may expose existing application issues that must be fixed rather than bypassed.
 
-### **3. Required Credentials in Jenkins**
+## 4. Helm chart
 
-```
-Credential ID          | Type              | Purpose
-----------------------|-------------------|---------------------------
-docker-cred           | Username/Password | Docker Hub login
-kube-cred             | Secret file       | Kubernetes config
-sonar-cred            | Secret text       | SonarQube token
-snyk-cred             | Secret text       | Snyk API token
-nvd-api-key           | Secret text       | NVD API key
-nexus-settings        | Config file       | Maven settings.xml
-```
+Chart path: `helm/taskmanager`.
 
-### **4. External Services**
+- `values-killercoda.yaml` — low-footprint, disposable lab configuration.
+- `values-eks.yaml` — ALB Ingress, autoscaling, and persistent database storage; requires AWS Load Balancer Controller, metrics-server, and EBS CSI support.
 
-#### **SonarQube Server**
+The chart expects a Secret named `taskmanager-db` with keys `mysql-root-password`, `db-username`, and `db-password`. Do not commit these values. See the deployment guide for safe setup.
 
-```
-URL: http://your-sonarqube-server:9000
-Project Key: devsecopsthreetier
-Quality Gate: Configured
-```
+## 5. Terraform and AWS EKS
 
-#### **Nexus Repository**
+Start with [terraform/eks/README.md](terraform/eks/README.md). The Terraform files are a learning scaffold and have not been applied or validated against your AWS account.
 
-```
-URL: http://your-nexus-server:8081
-Repository: maven-releases
-Authentication: Configured in settings.xml
-```
+**AWS costs are possible** for EKS, EC2 nodes, NAT Gateway, EBS volumes, ALB, public IPv4 addresses, and data transfer. Set a budget alert, inspect `terraform plan`, and destroy the lab after practice. Replace the example EKS API CIDR with your own public IP in `/32` form before applying.
 
-#### **Docker Registry**
+## 6. Monitoring
 
-```
-Registry: Docker Hub
-Username: 17rj
-Repositories:
-  - three-tier-todo-frontend
-  - three-tier-todo-backend
-```
+Follow [monitoring/README.md](monitoring/README.md) to install kube-prometheus-stack, enable the backend ServiceMonitor, and practise Prometheus/Grafana. The application exposes `/actuator/prometheus` for scraping; do not expose Actuator endpoints publicly.
 
-### **5. Security Tools Installation**
+## Troubleshooting and recovery
 
-#### **On Jenkins Server**
+- [Kubernetes troubleshooting runbook](docs/runbooks/kubernetes-troubleshooting.md)
+- [Rollback and recovery runbook](docs/runbooks/rollback-and-recovery.md)
+- [Production engineering roadmap](docs/production-engineering-roadmap.md)
 
-```bash
-# TruffleHog
-pip3 install trufflehog
+For each failure exercise, record the symptoms, evidence, impact, root cause, mitigation, and a test that prevents recurrence. Redact credentials from screenshots and logs.
 
-# Snyk
-npm install -g snyk
+## Scope and honesty
 
-# Dockle
-wget https://github.com/goodwithtech/dockle/releases/download/v0.4.14/dockle_0.4.14_Linux-64bit.tar.gz
-tar zxvf dockle_0.4.14_Linux-64bit.tar.gz
-sudo mv dockle /usr/local/bin/
+This project can help demonstrate advanced DevOps engineering skills when its workflows are run successfully and you can explain the trade-offs. It does not itself establish five years of professional work experience. Keep screenshots and logs of real test runs; do not claim stages have passed until they have.
 
-# Docker
-sudo apt install docker.io -y
-sudo usermod -aG docker $USER && newgrp docker
-
-
-# HELM
-sudo snap install helm --classic
-```
-
-### **6. Kubernetes RBAC Setup**
-
-```bash
-# Create namespace
-kubectl create namespace threetierapp
-
-# Apply RBAC for Jenkins
-kubectl apply -f jenkins-rbac.yaml
-```
-
----
-
-## 📁 Project Structure
-
-```
-Three-Tier-Todo-Application/
-├── frontend/                    # React.js application
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   └── App.jsx
-│   ├── Dockerfile
-│   ├── package.json
-│   └── nginx.conf
-│
-├── backend/                     # Spring Boot application
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/
-│   │   │   └── resources/
-│   │   └── test/
-│   ├── pom.xml
-│   └── Dockerfile
-│
-├── K8s/                         # Kubernetes manifests
-│   ├── secrets-configmap.yml
-│   ├── db-ds-service.yml
-│   ├── backend-ds-service.yml
-│   ├── frontend-ds-service.yml
-│   ├── ingress.yml
-│   └── jenkins-rbac.yaml
-│
-├── Jenkinsfile      # Pipeline Defination
-├── istio/
-├── docker-compose.yaml          # Local development
-├── snapshot/                    # Screenshots
-└── README.md
-```
-
----
-
-## 🚦 Getting Started
-
-### **1. Clone Repository**
-
-```bash
-git clone https://github.com/17J/Three-Tier-Todo-Application.git
-cd Three-Tier-Todo-Application
-```
-
-### \*_2. Setup EKS Cluster_
-
-# Clone Terraform repository
-```bash
-git clone https://github.com/17J/Terraform-AWS-EKS.git
-cd Terraform-AWS-EKS/terraform/
-```
-# Initialize Terraform
-```bash
-terraform init
-```
-
-# Review the plan
-```bash
-terraform plan
-```
-# Apply configuration
-```bash
-terraform apply -auto-approve
-```
-# Verify cluster
-```bash
-kubectl get nodes
-```
-### **3. Install ALB Controller**
-
-```bash
-# Associate OIDC provider
-eksctl utils associate-iam-oidc-provider \
-  --region ap-south-1 \
-  --cluster expdevops-cluster \
-  --approve
-
-# Create IAM policy
-curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.0/docs/install/iam_policy.json
-
-aws iam create-policy \
-  --policy-name AWSLoadBalancerControllerIAMPolicy \
-  --policy-document file://iam_policy.json
-
-# Create service account
-eksctl create iamserviceaccount \
-  --cluster=expdevops-cluster \
-  --namespace=kube-system \
-  --name=aws-load-balancer-controller \
-  --attach-policy-arn=arn:aws:iam::YOUR_ACCOUNT_ID:policy/AWSLoadBalancerControllerIAMPolicy \
-  --override-existing-serviceaccounts \
-  --approve
-
-# Install controller via Helm
-helm repo add eks https://aws.github.io/eks-charts
-helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  -n kube-system \
-  --set clusterName=expdevops-cluster \
-  --set serviceAccount.create=false \
-  --set serviceAccount.name=aws-load-balancer-controller
-```
-
-### **4. Create Namespace & RBAC**
-
-```bash
-# Create namespace
-kubectl create namespace threetierapp
-
-# Apply Jenkins RBAC
-kubectl apply -f K8s/jenkins-rbac.yaml
-```
-
-### **5. Configure Jenkins Pipeline**
-
-```bash
-1. Create new Pipeline job
-2. Configure Git repository
-3. Point to Jenkinsfile
-4. Add all required credentials
-5. Run pipeline
-```
-
----
-
-## 📊 Pipeline Results
-
-### **Jenkins Pipeline Stages View**
-
-<p align="center">
-    <img src="snapshot/pipelinestagesvide.png" alt="Jenkins Pipeline - 23 Stages" width="800"/>
-</p>
-
-### **OWASP Dependency Check Results**
-
-<p align="center">
-    <img src="snapshot/Dependency_check_result.png" alt="OWASP Dependency Check Report" width="800"/>
-</p>
-
-### **Kubernetes Deployment Status**
-
-<p align="center">
-    <img src="snapshot/k8s_all.png" alt="K8s Resources Running" width="800"/>
-</p>
-
-### **ALB Ingress Controller**
-
-<p align="center">
-    <img src="snapshot/ingerssalb.png" alt="ALB Ingress Configuration" width="800"/>
-</p>
-
-### **SonarQube SAST Analysis**
-
-<p align="center">
-    <img src="snapshot/sonar_latest_report.png" alt="SonarQube Code Quality Report" width="800"/>
-</p>
-
-### **Nexus Artifact Repository**
-
-<p align="center">
-    <img src="snapshot/nexus_report.png" alt="Nexus Published Artifacts" width="800"/>
-</p>
-
----
-
-## 🖼️ Application Screenshots
-
-<table>
-  <tr>
-    <td align="center">
-      <img src="snapshot/taskmanager.jpg" alt="Todo List View" width="350"/>
-      <br><b>Todo List Dashboard</b>
-    </td>
-    <td align="center">
-      <img src="snapshot/taskmanager2.jpg" alt="Add Task" width="350"/>
-      <br><b>Add New Task</b>
-    </td>
-    <td align="center">
-      <img src="snapshot/taskmanager3.jpg" alt="Task Management" width="350"/>
-      <br><b>Task Management</b>
-    </td>
-  </tr>
-</table>
-
----
-
-## 🔐 Security Features Implemented
-
-### **Shift-Left Security**
-
-- ✅ **Secret Detection (TruffleHog)** - Scans Git history for leaked credentials
-- ✅ **Dependency Scanning (Snyk + OWASP)** - Identifies vulnerable packages
-- ✅ **SAST (SonarQube)** - Static code analysis for bugs & vulnerabilities
-- ✅ **Container Scanning (Dockle)** - Docker image best practices validation
-
-### **Runtime Security**
-
-- ✅ **DAST (OWASP ZAP)** - Dynamic application security testing
-- ✅ **Quality Gates** - Automated quality enforcement
-- ✅ **RBAC in Kubernetes** - Least privilege access control
-- ✅ **Network Policies** - Ingress controller security
-
-### **Compliance & Governance**
-
-- ✅ **Artifact Traceability** - Nexus repository integration
-- ✅ **Build Reproducibility** - Tagged Docker images
-- ✅ **Audit Trails** - Jenkins build logs
-
----
-
-## 🎯 Key Features
-
-### **DevOps Best Practices**
-
-- 🔄 **CI/CD Automation** - Fully automated pipeline from code to production
-- 🐳 **Containerization** - Docker multi-stage builds
-- ☸️ **Orchestration** - Kubernetes with auto-scaling
-- 🔀 **GitOps** - Version-controlled infrastructure
-
-### **Security Best Practices**
-
-- 🔒 **Zero Trust** - RBAC and network policies
-- 🛡️ **Defense in Depth** - Multiple security layers
-- 📊 **Continuous Monitoring** - Security scans at every stage
-- 🚨 **Fail Fast** - Early detection of vulnerabilities
-
-### **Production Ready**
-
-- ⚡ **High Availability** - Multi-replica deployments
-- 📈 **Scalability** - Kubernetes HPA support
-- 🔍 **Observability** - Logging and monitoring ready
-- 🌐 **Load Balancing** - AWS ALB with health checks
-
----
-
-## 📝 Environment Variables
-
-### **Required in Jenkinsfile**
-
-```groovy
-SCANNER_HOME         # SonarQube scanner path
-FRONTEND_IMAGE_NAME  # Frontend Docker image name
-BACKEND_IMAGE_NAME   # Backend Docker image name
-IMAGE_TAG            # Build number
-DOCKER_REGISTRY      # Docker Hub username
-K8S_NAMESPACE        # Kubernetes namespace
-```
-
-### **Application Environment**
-
-```bash
-# Backend
-SPRING_DATASOURCE_URL=jdbc:mysql://mysql-service:3306/tododb
-SPRING_DATASOURCE_USERNAME=root
-SPRING_DATASOURCE_PASSWORD=***
-
-# Frontend
-REACT_APP_API_URL=/api
-```
-
----
-
-## 🐛 Troubleshooting
-
-### **ALB Controller Issues**
-
-```bash
-# Check controller logs
-kubectl logs -n kube-system deployment/aws-load-balancer-controller
-
-# Verify IAM permissions
-kubectl describe sa aws-load-balancer-controller -n kube-system
-
-# Check ingress status
-kubectl describe ingress todo-app-ingress -n threetierapp
-```
-
-### **Jenkins RBAC Issues**
-
-```bash
-# Test permissions
-kubectl auth can-i create deployments \
-  --as=system:serviceaccount:threetierapp:jenkins \
-  -n threetierapp
-
-# Recreate service account token
-kubectl delete secret jenkins-token -n threetierapp
-kubectl create secret generic jenkins-token \
-  --from-literal=token=$(kubectl create token jenkins -n threetierapp)
-```
-
-### **Pipeline Failures**
-
-```bash
-# Check pod logs
-kubectl logs -n threetierapp <pod-name>
-
-# Verify secrets
-kubectl get secrets -n threetierapp
-
-# Check service endpoints
-kubectl get endpoints -n threetierapp
-```
-
----
-
-## 🚀 Deployment
-
-### **Manual Deployment**
-
-```bash
-# Deploy to Kubernetes
-kubectl apply -f K8s/secrets-configmap.yml -n threetierapp
-kubectl apply -f K8s/db-ds-service.yml -n threetierapp
-kubectl apply -f K8s/backend-ds-service.yml -n threetierapp
-kubectl apply -f K8s/frontend-ds-service.yml -n threetierapp
-kubectl apply -f K8s/ingress.yml -n threetierapp
-
-# Get ALB URL
-kubectl get ingress todo-app-ingress -n threetierapp
-```
-
-### **Via Jenkins Pipeline**
-
-```bash
-# Trigger pipeline
-# Pipeline will automatically:
-# 1. Run all security scans
-# 2. Build and push Docker images
-# 3. Deploy to Kubernetes
-# 4. Configure ALB ingress
-# 5. Run DAST scan
-```
-
----
-
-## 📈 Monitoring & Logging
-
-### **View Logs**
-
-```bash
-# Frontend logs
-kubectl logs -f deployment/frontend -n threetierapp
-
-# Backend logs
-kubectl logs -f deployment/backend -n threetierapp
-
-# Database logs
-kubectl logs -f statefulset/mysql -n threetierapp
-```
-
-### **Check Resources**
-
-```bash
-# All resources
-kubectl get all -n threetierapp
-
-# Ingress status
-kubectl get ingress -n threetierapp
-
-# Pod status
-kubectl get pods -n threetierapp -o wide
-```
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 👨‍💻 Author
-
-**Rahul Joshi**  
-📧 Email: [17rahuljoshi@gmail.com](mailto:17rahuljoshi@gmail.com)  
-🔗 GitHub: [@17J](https://github.com/17J)
-
----
-
-## ⭐ Show Your Support
-
-Give a ⭐ if this project helped you learn DevSecOps practices!
-
----
-
-## 📚 Additional Resources
-
-- [AWS EKS Documentation](https://docs.aws.amazon.com/eks/)
-- [ALB Ingress Controller Guide](https://kubernetes-sigs.github.io/aws-load-balancer-controller/)
-- [Jenkins Pipeline Syntax](https://www.jenkins.io/doc/book/pipeline/syntax/)
-- [SonarQube Documentation](https://docs.sonarqube.org/)
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-
----
-
-**Built with ❤️ for the DevSecOps Community**
-
-
----
-
-## Production Engineering Upgrade Branch
-
-For the staged DevOps learning upgrade, use the `upgrade/production-ready-devops` branch.
-
-- [Killercoda deployment guide](docs/deploy-killercoda.md) — local Compose validation, image publishing, Helm deployment, smoke checks, and cleanup.
-- [Jenkins setup](docs/jenkins-setup.md) — required agent tools and credential IDs.
-- [Helm chart](helm/taskmanager/) — backend, frontend, MySQL, health probes, resource controls, optional HPA and ALB Ingress, and an optional Prometheus ServiceMonitor.
-- [Prometheus/Grafana lab](monitoring/README.md) — metrics collection and observability exercises.
-- [Terraform EKS lab](terraform/eks/README.md) — infrastructure-as-code scaffold, plan review, kubeconfig, and cost-aware cleanup.
-- [Kubernetes troubleshooting](docs/runbooks/kubernetes-troubleshooting.md) and [rollback/recovery](docs/runbooks/rollback-and-recovery.md).
-- [Production engineering roadmap](docs/production-engineering-roadmap.md) — remaining validation and infrastructure work.
-
-### Canonical deployment path
-
-For the upgrade branch, use the root `Jenkinsfile` and `helm/taskmanager` chart. The existing `K8s/` manifests and `azure-pipelines.yml` are legacy examples and are not the canonical path for this upgrade. Do not apply old manifests alongside the Helm release in the same namespace.
-
-### Important status note
-
-These files are a proposed engineering upgrade, not a claim of a tested production deployment. Run the Compose and Helm validation steps in a disposable environment, fix any build/lint failures, and save real test evidence before presenting it as complete. The EKS values can create billable AWS resources.
+The original application and its upstream project structure are credited to [17J](https://github.com/17J/Three-Tier-Todo-Application).
