@@ -31,3 +31,12 @@ zap-report.*
 .DS_Store
 Thumbs.db
 *.log
+
+# Terraform local state, plans, and credentials
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars
+!terraform.tfvars.example
+crash.log
