@@ -716,6 +716,7 @@ For the staged DevOps learning upgrade, use the `upgrade/production-ready-devops
 - [Jenkins setup](docs/jenkins-setup.md) — required agent tools and credential IDs.
 - [Helm chart](helm/taskmanager/) — backend, frontend, MySQL, health probes, resource controls, optional HPA and ALB Ingress, and an optional Prometheus ServiceMonitor.
 - [Prometheus/Grafana lab](monitoring/README.md) — metrics collection and observability exercises.
+- [Terraform EKS lab](terraform/eks/README.md) — infrastructure-as-code scaffold, plan review, kubeconfig, and cost-aware cleanup.
 - [Kubernetes troubleshooting](docs/runbooks/kubernetes-troubleshooting.md) and [rollback/recovery](docs/runbooks/rollback-and-recovery.md).
 - [Production engineering roadmap](docs/production-engineering-roadmap.md) — remaining validation and infrastructure work.
 
