@@ -129,9 +129,20 @@ pipeline {
             steps {
                 script {
                     def kubeCredential = "kubeconfig-${params.DEPLOY_ENV}"
-                    withCredentials([file(credentialsId: kubeCredential, variable: 'KUBECONFIG')]) {
+                    withCredentials([
+                        file(credentialsId: kubeCredential, variable: 'KUBECONFIG'),
+                        string(credentialsId: 'mysql-root-password', variable: 'MYSQL_ROOT_PASSWORD'),
+                        string(credentialsId: 'mysql-app-password', variable: 'MYSQL_APP_PASSWORD')
+                    ]) {
                         sh '''
                             set -eu
+                            set +x
+                            kubectl create namespace taskmanager --dry-run=client -o yaml | kubectl apply -f -
+                            kubectl create secret generic taskmanager-db -n taskmanager \
+                              --from-literal=mysql-root-password="$MYSQL_ROOT_PASSWORD" \
+                              --from-literal=db-username=taskapp \
+                              --from-literal=db-password="$MYSQL_APP_PASSWORD" \
+                              --dry-run=client -o yaml | kubectl apply -f -
                             helm lint ./helm/taskmanager -f "./helm/taskmanager/values-$DEPLOY_ENV.yaml"
                             helm upgrade --install todo ./helm/taskmanager \
                               --namespace taskmanager --create-namespace \
