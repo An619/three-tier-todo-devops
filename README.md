@@ -49,15 +49,15 @@ azure-pipelines.yml             Legacy pipeline example
 
 ## 1. Local validation with Docker Compose
 
-Requirements: Git, Docker Engine, and Docker Compose v2.
+Requirements: Git and Docker. Docker Compose v2 is preferred; on Killercoda, use `docker-compose` if the `docker compose` plugin is unavailable.
 
 ```bash
 git clone --branch upgrade/production-ready-devops --single-branch https://github.com/An619/three-tier-todo-devops.git
 cd three-tier-todo-devops
 
-docker compose config
-docker compose up -d --build
-docker compose ps
+docker-compose config
+docker-compose up -d --build
+docker-compose ps
 curl -fsS http://localhost:8085/actuator/health
 curl -I http://localhost:3000
 ```
@@ -67,13 +67,13 @@ Open `http://localhost:3000` for the UI. API calls go through Nginx to the backe
 Useful commands:
 
 ```bash
-docker compose logs -f
-docker compose logs -f backend
-docker compose logs -f mysql
-docker compose down
+docker-compose logs -f
+docker-compose logs -f backend
+docker-compose logs -f mysql
+docker-compose down
 ```
 
-Only use `docker compose down -v` when you intentionally want to delete the local MySQL volume and all data stored in it.
+Only use `docker-compose down -v` when you intentionally want to delete the local MySQL volume and all data stored in it.
 
 ## 2. Practise on Killercoda first
 
