@@ -12,9 +12,8 @@ metadata:
 spec:
   ingressClassName: {{ .Values.ingress.className | quote }}
   rules:
-    - {{- if .Values.ingress.host }}
-      host: {{ .Values.ingress.host | quote }}
-      {{- end }}
+{{ if .Values.ingress.host }}
+    - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
           - path: /
@@ -24,6 +23,17 @@ spec:
                 name: {{ include "taskmanager.fullname" . }}-frontend
                 port:
                   number: {{ .Values.service.frontend.port }}
+{{ else }}
+    - http:
+        paths:
+          - path: /
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "taskmanager.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.service.frontend.port }}
+{{ end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -38,9 +48,8 @@ metadata:
 spec:
   ingressClassName: {{ .Values.ingress.className | quote }}
   rules:
-    - {{- if .Values.ingress.host }}
-      host: {{ .Values.ingress.host | quote }}
-      {{- end }}
+{{ if .Values.ingress.host }}
+    - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
           - path: /api
@@ -50,4 +59,15 @@ spec:
                 name: backend-service
                 port:
                   number: {{ .Values.service.backend.port }}
+{{ else }}
+    - http:
+        paths:
+          - path: /api
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: {{ .Values.service.backend.port }}
+{{ end }}
 {{- end }}
