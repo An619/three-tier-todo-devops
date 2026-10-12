@@ -21,9 +21,11 @@ Create credentials in Jenkins; do not store values in Git.
 - `dockerhub-creds`: Username with a Docker Hub access token as password.
 - `kubeconfig-killercoda`: Secret file containing the kubeconfig for the temporary Killercoda cluster, if supported by the lab session.
 - `kubeconfig-eks`: Secret file containing the least-privilege kubeconfig for a disposable EKS cluster.
+- `mysql-root-password`: Secret text for the disposable lab MySQL root password.
+- `mysql-app-password`: Secret text for the application database user password.
 - Add SonarQube/SCA credentials only if those optional integrations are enabled.
 
-Do not use a cluster-admin kubeconfig for routine deployments. Prefer a dedicated namespace and least-privilege service account/RBAC.
+Do not use a cluster-admin kubeconfig for routine deployments. Prefer a dedicated namespace and least-privilege service account/RBAC. The Helm deployment stage creates/updates the `taskmanager-db` Kubernetes Secret from the two Jenkins secret-text credentials; keep those values out of Git.
 
 ## GitHub push trigger
 
