@@ -86,9 +86,9 @@ spec:
               mountPath: /var/lib/mysql
       volumes:
         - name: mysql-data
-          {{- if .Values.mysql.persistence.enabled }}
+          {{ if .Values.mysql.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "taskmanager.fullname" . }}-mysql
-          {{- else }}
+          {{ else }}
           emptyDir: {}
-          {{- end }}
+          {{ end }}
