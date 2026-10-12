@@ -704,3 +704,25 @@ Give a ⭐ if this project helped you learn DevSecOps practices!
 ---
 
 **Built with ❤️ for the DevSecOps Community**
+
+
+---
+
+## Production Engineering Upgrade Branch
+
+For the staged DevOps learning upgrade, use the `upgrade/production-ready-devops` branch.
+
+- [Killercoda deployment guide](docs/deploy-killercoda.md) — local Compose validation, image publishing, Helm deployment, smoke checks, and cleanup.
+- [Jenkins setup](docs/jenkins-setup.md) — required agent tools and credential IDs.
+- [Helm chart](helm/taskmanager/) — backend, frontend, MySQL, health probes, resource controls, optional HPA and ALB Ingress, and an optional Prometheus ServiceMonitor.
+- [Prometheus/Grafana lab](monitoring/README.md) — metrics collection and observability exercises.
+- [Kubernetes troubleshooting](docs/runbooks/kubernetes-troubleshooting.md) and [rollback/recovery](docs/runbooks/rollback-and-recovery.md).
+- [Production engineering roadmap](docs/production-engineering-roadmap.md) — remaining validation and infrastructure work.
+
+### Canonical deployment path
+
+For the upgrade branch, use the root `Jenkinsfile` and `helm/taskmanager` chart. The existing `K8s/` manifests and `azure-pipelines.yml` are legacy examples and are not the canonical path for this upgrade. Do not apply old manifests alongside the Helm release in the same namespace.
+
+### Important status note
+
+These files are a proposed engineering upgrade, not a claim of a tested production deployment. Run the Compose and Helm validation steps in a disposable environment, fix any build/lint failures, and save real test evidence before presenting it as complete. The EKS values can create billable AWS resources.
