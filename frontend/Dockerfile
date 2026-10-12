@@ -1,31 +1,18 @@
-# Stage 1: Build the React Frontend (using Vite.js)
-FROM node:18-alpine AS builder
-
+FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the frontend code
-COPY . ./
-
-# Build the frontend
+COPY . .
 RUN npm run build
 
-# Stage 2: Serve the built frontend
-FROM nginx:alpine
-
-# Copy the built files from the builder stage
+FROM nginx:1.27-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://127.0.0.1/ || exit 1
 
-# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
