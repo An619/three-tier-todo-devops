@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${FRONTEND_PORT:-3000}:8080"
     depends_on:
       backend:
         condition: service_healthy
@@ -18,12 +18,12 @@ services:
       dockerfile: Dockerfile
     # Local troubleshooting only; Kubernetes keeps the backend internal.
     ports:
-      - "${BACKEND_PORT:-8085}:8085"
+      - "${BACKEND_PORT:-8085}:8080"
     environment:
-      SERVER_PORT: "8085"
+      SERVER_PORT: "8080"
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/taskdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-dev-only-change-me}
+      SPRING_DATASOURCE_USERNAME: taskapp
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-local-app-password-change-me}
     depends_on:
       mysql:
         condition: service_healthy
@@ -32,7 +32,7 @@ services:
         aliases:
           - backend-service
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8085/actuator/health | grep -q 'UP'"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q 'UP'"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -42,8 +42,10 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-dev-only-change-me}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-root-password-change-me}
       MYSQL_DATABASE: taskdb
+      MYSQL_USER: taskapp
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-local-app-password-change-me}
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
