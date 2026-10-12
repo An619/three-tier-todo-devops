@@ -14,14 +14,14 @@ cd three-tier-todo-devops
 Run the local three-tier stack first:
 
 ```bash
-docker compose config
-docker compose up -d --build
-docker compose ps
+docker-compose config
+docker-compose up -d --build
+docker-compose ps
 curl -fsS http://localhost:8085/actuator/health
 curl -I http://localhost:3000
 ```
 
-Open port 3000 for the UI. The Compose passwords have local-only defaults for practice; set your own values before using this outside a disposable lab. To stop the stack, run `docker compose down`. To also delete the local database volume, run `docker compose down -v` (this permanently deletes its data).
+Open port 3000 for the UI. The Compose passwords have local-only defaults for practice; set your own values before using this outside a disposable lab. To stop the stack, run `docker-compose down`. To also delete the local database volume, run `docker-compose down -v` (this permanently deletes its data).
 
 ## B. Build and publish images for Kubernetes
 
