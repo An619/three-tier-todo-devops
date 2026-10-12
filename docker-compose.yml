@@ -1,48 +1,60 @@
-version: "3.8"
-
 services:
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "${FRONTEND_PORT:-3000}:80"
     depends_on:
-      - backend
-    environment:
-      - API_BASE_URL=http://localhost:8080/api
+      backend:
+        condition: service_healthy
     networks:
       - app-network
+    restart: unless-stopped
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    # Local troubleshooting only; Kubernetes keeps the backend internal.
     ports:
-      - "8085:8085"
-    depends_on:
-      - mysql
+      - "${BACKEND_PORT:-8085}:8085"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/taskdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
+      SERVER_PORT: "8085"
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/taskdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-dev-only-change-me}
+    depends_on:
+      mysql:
+        condition: service_healthy
     networks:
-      - app-network
+      app-network:
+        aliases:
+          - backend-service
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8085/actuator/health | grep -q 'UP'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
 
   mysql:
     image: mysql:8.0
-    ports:
-      - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_DATABASE=taskdb
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local-dev-only-change-me}
+      MYSQL_DATABASE: taskdb
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p"$$${MYSQL_ROOT_PASSWORD}" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
 
 networks:
   app-network:
