@@ -24,7 +24,7 @@ module "vpc" {
   }
 
   private_subnet_tags = {
-    "kubernetes.io/role/internal-elb"            = "1"
+    "kubernetes.io/role/internal-elb"           = "1"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
   }
 
@@ -64,9 +64,9 @@ module "eks" {
 
   eks_managed_node_groups = {
     default = {
-      name           = "taskmanager-lab"
+      name          = "taskmanager-lab"
       instance_types = [var.node_instance_type]
-      ami_type       = "AL2023_x86_64_STANDARD"
+      ami_type      = "AL2023_x86_64_STANDARD"
 
       # Lab convenience: grants EBS CSI permissions to the node role.
       # For production, prefer a dedicated Pod Identity/IRSA role for the CSI driver.
