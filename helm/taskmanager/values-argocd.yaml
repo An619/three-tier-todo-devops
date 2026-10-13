@@ -6,11 +6,11 @@ replicaCount:
 
 image:
   frontend:
-    repository: An619/three-tier-todo-frontend
+    repository: YOUR_DOCKERHUB_USERNAME/three-tier-todo-frontend
     tag: "REPLACE_WITH_VALIDATED_TAG"
     pullPolicy: IfNotPresent
   backend:
-    repository: An619/three-tier-todo-backend
+    repository: YOUR_DOCKERHUB_USERNAME/three-tier-todo-backend
     tag: "REPLACE_WITH_VALIDATED_TAG"
     pullPolicy: IfNotPresent
 
