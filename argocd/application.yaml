@@ -17,9 +17,8 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: taskmanager
+  # Manual sync is intentional until real, validated image tags replace the placeholders.
+  # Enable automated sync after the first successful deployment and review.
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true
