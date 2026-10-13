@@ -2,7 +2,7 @@
 
 ## Pipeline responsibility
 
-Jenkins is the **CI** system. It checks out code, runs Maven tests, submits analysis to SonarQube, blocks on the SonarQube Quality Gate, lints/builds the frontend, builds Docker images, scans them with Trivy, and optionally publishes immutable tags to Docker Hub.
+Jenkins is the **CI** system. It checks out code, runs Maven tests, submits analysis to SonarQube, blocks on the SonarQube Quality Gate, lints/builds the frontend, builds Docker images, scans them with Trivy, generates CycloneDX SBOMs, archives Trivy JSON/SBOM reports as build artifacts, and optionally publishes immutable tags to Docker Hub.
 
 **Jenkins must not run `helm upgrade` or `kubectl apply` for this app.** Argo CD is the single controller for Kubernetes delivery. After a successful build, promote the exact image tags by changing `helm/taskmanager/values-argocd.yaml` in a reviewed Git commit or pull request.
 
@@ -45,7 +45,7 @@ Do not store passwords, tokens, kubeconfigs, or database credentials in Git. Sta
 3. Set the branch specifier to `*/upgrade/production-ready-devops` while validating this draft branch.
 4. Set the script path to `Jenkinsfile`.
 5. Configure a secure GitHub webhook only if Jenkins is reachable securely from GitHub, then enable the GitHub hook trigger.
-6. Run first with `PUBLISH_IMAGES=false`. Confirm backend tests, SonarQube Quality Gate, frontend lint/build, image build and Trivy stages pass.
+6. Run first with `PUBLISH_IMAGES=false`. Confirm backend unit tests, SonarQube Quality Gate, frontend lint/build, image build, Trivy scans, and SBOM generation pass. Review the archived Trivy reports and SBOM artifacts before promotion.
 7. Only after those checks pass, configure `dockerhub-creds` and run with `PUBLISH_IMAGES=true`.
 
 ## GitOps release flow
