@@ -12,12 +12,7 @@ pipeline {
         booleanParam(
             name: 'PUBLISH_IMAGES',
             defaultValue: false,
-            description: 'Push scanned images to Docker Hub. Required automatically for Kubernetes deployments.'
-        )
-        choice(
-            name: 'DEPLOY_ENV',
-            choices: ['none', 'killercoda', 'eks'],
-            description: 'Deployment target. Select none for CI-only validation.'
+            description: 'Push successfully tested and scanned immutable images to Docker Hub.'
         )
     }
 
@@ -25,7 +20,6 @@ pipeline {
         BACKEND_LOCAL_IMAGE = 'three-tier-todo-backend'
         FRONTEND_LOCAL_IMAGE = 'three-tier-todo-frontend'
         IMAGE_TAG = ''
-        DOCKERHUB_USERNAME = ''
     }
 
     stages {
@@ -50,6 +44,7 @@ pipeline {
                     node --version
                     npm --version
                     docker info
+                    trivy --version
                 '''
             }
         }
@@ -58,6 +53,25 @@ pipeline {
             steps {
                 dir('backend') {
                     sh 'mvn -B clean verify'
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    def scannerHome = tool 'sonar-scanner'
+                    withSonarQubeEnv('sonar') {
+                        sh "${scannerHome}/bin/sonar-scanner"
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
@@ -95,9 +109,9 @@ pipeline {
             }
         }
 
-        stage('Push Images') {
+        stage('Publish Immutable Images') {
             when {
-                expression { return params.PUBLISH_IMAGES || params.DEPLOY_ENV != 'none' }
+                expression { return params.PUBLISH_IMAGES }
             }
             steps {
                 withCredentials([usernamePassword(
@@ -105,9 +119,6 @@ pipeline {
                     usernameVariable: 'DOCKER_USERNAME',
                     passwordVariable: 'DOCKER_PASSWORD'
                 )]) {
-                    script {
-                        env.DOCKERHUB_USERNAME = env.DOCKER_USERNAME
-                    }
                     sh '''
                         set +x
                         set -eu
@@ -119,51 +130,8 @@ pipeline {
                         docker logout
                     '''
                 }
-            }
-        }
-
-        stage('Deploy with Helm') {
-            when {
-                expression { return params.DEPLOY_ENV != 'none' }
-            }
-            steps {
-                script {
-                    def kubeCredential = "kubeconfig-${params.DEPLOY_ENV}"
-                    withCredentials([
-                        file(credentialsId: kubeCredential, variable: 'KUBECONFIG'),
-                        string(credentialsId: 'mysql-root-password', variable: 'MYSQL_ROOT_PASSWORD'),
-                        string(credentialsId: 'mysql-app-password', variable: 'MYSQL_APP_PASSWORD')
-                    ]) {
-                        sh '''
-                            set +x
-                            set -eu
-                            kubectl create namespace taskmanager --dry-run=client -o yaml | kubectl apply -f -
-                            secret_dir="$(mktemp -d)"
-                            trap 'rm -rf "$secret_dir"' EXIT
-                            umask 077
-                            printf '%s' "$MYSQL_ROOT_PASSWORD" > "$secret_dir/mysql-root-password"
-                            printf '%s' 'taskapp' > "$secret_dir/db-username"
-                            printf '%s' "$MYSQL_APP_PASSWORD" > "$secret_dir/db-password"
-                            kubectl create secret generic taskmanager-db -n taskmanager \
-                              --from-file=mysql-root-password="$secret_dir/mysql-root-password" \
-                              --from-file=db-username="$secret_dir/db-username" \
-                              --from-file=db-password="$secret_dir/db-password" \
-                              --dry-run=client -o yaml | kubectl apply -f -
-                            helm lint ./helm/taskmanager -f "./helm/taskmanager/values-$DEPLOY_ENV.yaml"
-                            helm upgrade --install todo ./helm/taskmanager \
-                              --namespace taskmanager --create-namespace \
-                              -f "./helm/taskmanager/values-$DEPLOY_ENV.yaml" \
-                              --set image.backend.repository="$DOCKERHUB_USERNAME/three-tier-todo-backend" \
-                              --set image.backend.tag="$IMAGE_TAG" \
-                              --set image.frontend.repository="$DOCKERHUB_USERNAME/three-tier-todo-frontend" \
-                              --set image.frontend.tag="$IMAGE_TAG" \
-                              --wait --timeout 10m
-                            kubectl rollout status deployment/todo-taskmanager-backend -n taskmanager --timeout=300s
-                            kubectl rollout status deployment/todo-taskmanager-frontend -n taskmanager --timeout=300s
-                            kubectl get pods,services -n taskmanager -o wide
-                        '''
-                    }
-                }
+                echo 'Images published with immutable build-and-commit tags.'
+                echo 'Promote by updating helm/taskmanager/values-argocd.yaml in a reviewed Git commit or pull request.'
             }
         }
     }
@@ -171,12 +139,14 @@ pipeline {
     post {
         always {
             sh '''
-                docker image rm "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG" 2>/dev/null || true
-                docker image rm "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG" 2>/dev/null || true
+                if [ -n "$IMAGE_TAG" ]; then
+                    docker image rm "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG" 2>/dev/null || true
+                    docker image rm "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG" 2>/dev/null || true
+                fi
             '''
         }
         success {
-            echo 'Pipeline completed. Review the test and scan results before promoting this build.'
+            echo 'CI pipeline completed. Argo CD owns Kubernetes delivery; promote only a validated image tag through Git.'
         }
         failure {
             echo 'Pipeline failed. Inspect the first failing stage and preserve logs before retrying.'
