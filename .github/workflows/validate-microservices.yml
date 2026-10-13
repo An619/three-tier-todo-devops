@@ -1,0 +1,60 @@
+name: Validate extracted task service
+
+on:
+  pull_request:
+    branches: [main, upgrade/production-ready-devops]
+  push:
+    branches: [feature/microservices-migration]
+
+permissions:
+  contents: read
+
+jobs:
+  task-service:
+    name: Task service Maven tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: services/task-service/pom.xml
+      - name: Test and package extracted task service
+        run: mvn -B -f services/task-service/pom.xml clean verify
+
+  compose:
+    name: Extracted service Compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MYSQL_ROOT_PASSWORD: ci-only-root-password
+      MYSQL_APP_PASSWORD: ci-only-app-password
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate service Compose configuration
+        run: docker compose -f services/docker-compose.yml config --quiet
+      - name: Build and start extracted task service
+        run: docker compose -f services/docker-compose.yml up -d --build
+      - name: Wait for task service health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://localhost:8085/actuator/health > /tmp/task-health.json; then
+              cat /tmp/task-health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Task service did not become healthy in 4 minutes."
+          exit 1
+      - name: Smoke test task API
+        run: curl --fail --silent --show-error http://localhost:8085/api/tasks
+      - name: Diagnostics on failure
+        if: failure()
+        run: docker compose -f services/docker-compose.yml ps && docker compose -f services/docker-compose.yml logs --no-color
+      - name: Always clean up
+        if: always()
+        run: docker compose -f services/docker-compose.yml down -v --remove-orphans
