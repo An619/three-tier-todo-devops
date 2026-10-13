@@ -1,6 +1,6 @@
 # Three-Tier Todo — DevOps Engineering Lab
 
-A React/Vite frontend, Spring Boot REST API, and MySQL database used to practise a realistic DevOps delivery workflow. This repository is based on the application from [17J/Three-Tier-Todo-Application](https://github.com/17J/Three-Tier-Todo-Application), with a separate DevOps engineering upgrade branch.
+A React/Vite frontend, Spring Boot REST API, and MySQL database used to practise a realistic DevOps delivery workflow. This is a **three-tier application, not a microservices application**: the backend is one Spring Boot service. This repository is based on the application from [17J/Three-Tier-Todo-Application](https://github.com/17J/Three-Tier-Todo-Application), with a separate DevOps engineering upgrade branch.
 
 > **Status:** the `upgrade/production-ready-devops` branch contains a proposed upgrade that still needs runtime validation. Do not describe it as production-ready until the build, security gates, deployment, monitoring, rollback, and recovery exercises have actually passed.
 
@@ -130,6 +130,12 @@ Follow [monitoring/README.md](monitoring/README.md) to install kube-prometheus-s
 - [Production engineering roadmap](docs/production-engineering-roadmap.md)
 
 For each failure exercise, record the symptoms, evidence, impact, root cause, mitigation, and a test that prevents recurrence. Redact credentials from screenshots and logs.
+
+## Known application limitations
+
+- The current frontend authentication flow is a demo that stores user records and passwords in browser `localStorage`; it is **not secure for real users**. Do not use real passwords or present this authentication as production-ready. Replace it with server-side authentication, password hashing, session/token lifecycle controls, and authorization before any real deployment.
+- The app is one Spring Boot backend plus a MySQL database. Docker/Kubernetes do not make it microservices; a genuine microservices conversion would require separate business services and ownership boundaries.
+- The Compose fallback credentials are for disposable local labs only. Use managed secrets and unique credentials outside the lab.
 
 ## Scope and honesty
 
