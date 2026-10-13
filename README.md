@@ -25,10 +25,11 @@ flowchart LR
 
 ## What the upgrade adds
 
-- Jenkins pipeline that checks out the configured SCM branch, runs Maven verification and frontend lint/build, creates immutable image tags, scans images with Trivy, publishes images through Jenkins credentials, and optionally deploys with Helm.
+- Jenkins CI pipeline that runs Maven verification, SonarQube analysis and Quality Gate enforcement, frontend lint/build, immutable image builds, Trivy scanning, and optional credential-backed Docker Hub publishing. Jenkins does not deploy Kubernetes resources.
 - Multi-stage container builds, a non-root backend runtime, unprivileged Nginx frontend, and same-origin `/api` routing.
 - Docker Compose health checks, service networking, and startup ordering.
 - Helm chart for frontend, backend, and MySQL with probes, resource requests/limits, externalized database credentials, optional HPA, ALB Ingress, and Prometheus ServiceMonitor.
+- Argo CD Application manifest and dedicated GitOps values file. Kubernetes delivery is controlled by reviewed image-tag changes in Git; Argo CD owns reconciliation.
 - Terraform scaffold for AWS VPC/EKS, with endpoint CIDR restriction and cost-aware cleanup instructions.
 - Runbooks for Kubernetes troubleshooting, rollback/recovery, and monitoring.
 
@@ -90,13 +91,13 @@ The Killercoda values use ephemeral database storage, so data can be lost if the
 
 ## 3. Jenkins pipeline
 
-See [docs/jenkins-setup.md](docs/jenkins-setup.md) before running Jenkins. The agent needs Git, JDK 17, Maven, Node.js/npm, Docker daemon access, Trivy, Helm, and kubectl for deployment stages.
+See [docs/jenkins-setup.md](docs/jenkins-setup.md) and [SonarQube setup](docs/sonarqube-setup.md) before running Jenkins. The CI agent needs Git, JDK 17, Maven, Node.js/npm, Docker daemon access, Trivy, and the SonarQube Scanner. Helm/kubectl are needed for separate manual lab exercises, not the Jenkins CI pipeline.
 
 Create the documented Jenkins credentials before enabling publishing or deployment:
 
 - `dockerhub-creds` — Docker Hub username and access token.
-- `kubeconfig-killercoda` and/or `kubeconfig-eks` — kubeconfig secret files.
-- `mysql-root-password` and `mysql-app-password` — secret-text credentials used to provision the database Secret.
+- Argo CD is configured separately in the target cluster. Jenkins CI does not need cluster credentials.
+- Do not create Kubernetes credentials in Jenkins for the standard CI pipeline; Argo CD owns delivery.
 
 Configure the Jenkins job to use this repository and branch, then set up a secure GitHub webhook if Jenkins is reachable from GitHub. Start with `DEPLOY_ENV=none`; only enable publishing/deployment after the test and scan stages pass. The frontend lint stage may expose existing application issues that must be fixed rather than bypassed.
 
