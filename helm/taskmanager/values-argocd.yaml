@@ -1,0 +1,33 @@
+# GitOps release values. Replace image tags with immutable, successfully scanned tags before syncing.
+# Never put database passwords in this file; provision Secret taskmanager-db out-of-band.
+replicaCount:
+  frontend: 2
+  backend: 2
+
+image:
+  frontend:
+    repository: An619/three-tier-todo-frontend
+    tag: "REPLACE_WITH_VALIDATED_TAG"
+    pullPolicy: IfNotPresent
+  backend:
+    repository: An619/three-tier-todo-backend
+    tag: "REPLACE_WITH_VALIDATED_TAG"
+    pullPolicy: IfNotPresent
+
+mysql:
+  persistence:
+    enabled: true
+    size: 8Gi
+
+autoscaling:
+  frontend:
+    enabled: false
+  backend:
+    enabled: false
+
+ingress:
+  enabled: false
+
+monitoring:
+  serviceMonitor:
+    enabled: false
