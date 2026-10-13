@@ -7,6 +7,27 @@ interface User {
   email: string;
 }
 
+interface StoredUser extends User {
+  password: string;
+}
+
+const readStoredUsers = (): StoredUser[] => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem('users') || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is StoredUser =>
+      typeof item === 'object' &&
+      item !== null &&
+      'id' in item && typeof item.id === 'string' &&
+      'username' in item && typeof item.username === 'string' &&
+      'email' in item && typeof item.email === 'string' &&
+      'password' in item && typeof item.password === 'string'
+    );
+  } catch {
+    return [];
+  }
+};
+
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
@@ -48,8 +69,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // For now, we'll simulate a successful registration with dummy data
       if (username && email && password) {
         // Check if user already exists
-        const users = JSON.parse(localStorage.getItem('users') || '[]');
-        const userExists = users.find((u: any) => u.email === email);
+        const users = readStoredUsers();
+        const userExists = users.find((storedUser) => storedUser.email === email);
         
         if (userExists) {
           throw new Error('User with this email already exists');
@@ -93,8 +114,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // In a real app, this would be an API call to your backend
       // For now, we'll check against our local storage "database"
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      const user = users.find((u: any) => u.email === email && u.password === password);
+      const users = readStoredUsers();
+      const user = users.find((storedUser) => storedUser.email === email && storedUser.password === password);
       
       if (user) {
         // Create user session without password
