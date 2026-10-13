@@ -133,12 +133,12 @@ pipeline {
                     sh '''
                         set +x
                         set -eu
+                        trap 'docker logout >/dev/null 2>&1 || true' EXIT
                         echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
                         docker tag "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG" "$DOCKER_USERNAME/$BACKEND_LOCAL_IMAGE:$IMAGE_TAG"
                         docker tag "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG" "$DOCKER_USERNAME/$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG"
                         docker push "$DOCKER_USERNAME/$BACKEND_LOCAL_IMAGE:$IMAGE_TAG"
                         docker push "$DOCKER_USERNAME/$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG"
-                        docker logout
                     '''
                 }
                 echo 'Images published with immutable build-and-commit tags.'
