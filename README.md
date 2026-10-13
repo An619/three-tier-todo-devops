@@ -61,6 +61,8 @@ Requirements: Git and Docker. Docker Compose v2 is preferred; on Killercoda, use
 git clone --branch upgrade/production-ready-devops --single-branch https://github.com/An619/three-tier-todo-devops.git
 cd three-tier-todo-devops
 
+cp .env.example .env
+# Edit .env and set unique values for MYSQL_ROOT_PASSWORD and MYSQL_APP_PASSWORD
 docker-compose config
 docker-compose up -d --build
 docker-compose ps
@@ -68,7 +70,7 @@ curl -fsS http://localhost:8085/actuator/health
 curl -I http://localhost:3000
 ```
 
-Open `http://localhost:3000` for the UI. API calls go through Nginx to the backend service. Compose has local-only fallback passwords for disposable practice; set strong local values before using it outside a lab.
+Open `http://localhost:3000` for the UI. API calls go through Nginx to the backend service. Compose refuses to start until you set explicit database passwords in the ignored local `.env` file. Never commit `.env`.
 
 Useful commands:
 
