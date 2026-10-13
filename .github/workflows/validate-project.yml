@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - name: Check formatting
-        run: terraform fmt -check -recursive
+        run: terraform fmt -diff -check -recursive
       - name: Initialize providers without backend
         run: terraform init -backend=false
       - name: Validate configuration
