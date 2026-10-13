@@ -25,7 +25,8 @@ flowchart LR
 
 ## What the upgrade adds
 
-- Jenkins CI pipeline that runs Maven verification, SonarQube analysis and Quality Gate enforcement, frontend lint/build, immutable image builds, Trivy scanning, and optional credential-backed Docker Hub publishing. Jenkins does not deploy Kubernetes resources.
+- Jenkins CI pipeline that runs Maven verification/unit tests, SonarQube analysis and Quality Gate enforcement, frontend lint/build, immutable image builds, Trivy scanning, CycloneDX SBOM generation, and optional credential-backed Docker Hub publishing. Jenkins does not deploy Kubernetes resources.
+- GitHub Actions checks for backend tests, frontend lint/build, Helm lint, Terraform format/validation, plus CodeQL scans for Java and TypeScript and Dependabot update PRs.
 - Multi-stage container builds, a non-root backend runtime, unprivileged Nginx frontend, and same-origin `/api` routing.
 - Docker Compose health checks, service networking, and startup ordering.
 - Helm chart for frontend, backend, and MySQL with probes, resource requests/limits, externalized database credentials, optional HPA, ALB Ingress, and Prometheus ServiceMonitor.
@@ -42,7 +43,8 @@ docker-compose.yml             Local three-tier stack
 Jenkinsfile                    Jenkins CI pipeline
 argocd/                        Argo CD Application and GitOps guide
 sonar-project.properties       SonarQube source configuration
-.github/workflows/             Pull request validation checks
+.github/workflows/             Validation and CodeQL security workflows
+.github/dependabot.yml          Automated dependency update PRs
 helm/taskmanager/              Helm chart and Killercoda/EKS values
 terraform/eks/                 Terraform VPC/EKS lab scaffold
 monitoring/                    Prometheus/Grafana practice guide
