@@ -10,12 +10,12 @@ A React/Vite frontend, Spring Boot REST API, and MySQL database used to practise
 flowchart LR
     Dev[Developer] -->|Git push| GH[GitHub]
     GH -->|Webhook| J[Jenkins]
-    J --> T[Tests and quality checks]
-    T --> B[Build container images]
+    J --> T[Maven tests + SonarQube Quality Gate]
+    T --> B[Build Docker images]
     B --> S[Trivy vulnerability scan]
     S --> R[Docker Hub]
-    R --> H[Helm]
-    H --> K[Kubernetes: Killercoda or EKS]
+    R -->|Reviewed image-tag change in Git| A[Argo CD]
+    A -->|Sync Helm desired state| K[Kubernetes: Killercoda or EKS]
     K --> F[Frontend: Nginx]
     F --> API[Spring Boot API]
     API --> DB[(MySQL)]
@@ -39,7 +39,10 @@ flowchart LR
 backend/                       Spring Boot API and Dockerfile
 frontend/                      React/Vite UI, Nginx config and Dockerfile
 docker-compose.yml             Local three-tier stack
-Jenkinsfile                    CI/CD pipeline
+Jenkinsfile                    Jenkins CI pipeline
+argocd/                        Argo CD Application and GitOps guide
+sonar-project.properties       SonarQube source configuration
+.github/workflows/             Pull request validation checks
 helm/taskmanager/              Helm chart and Killercoda/EKS values
 terraform/eks/                 Terraform VPC/EKS lab scaffold
 monitoring/                    Prometheus/Grafana practice guide
@@ -93,13 +96,13 @@ The Killercoda values use ephemeral database storage, so data can be lost if the
 
 See [docs/jenkins-setup.md](docs/jenkins-setup.md) and [SonarQube setup](docs/sonarqube-setup.md) before running Jenkins. The CI agent needs Git, JDK 17, Maven, Node.js/npm, Docker daemon access, Trivy, and the SonarQube Scanner. Helm/kubectl are needed for separate manual lab exercises, not the Jenkins CI pipeline.
 
-Create the documented Jenkins credentials before enabling publishing or deployment:
+Create the documented Jenkins credentials before enabling image publishing:
 
 - `dockerhub-creds` — Docker Hub username and access token.
 - Argo CD is configured separately in the target cluster. Jenkins CI does not need cluster credentials.
 - Do not create Kubernetes credentials in Jenkins for the standard CI pipeline; Argo CD owns delivery.
 
-Configure the Jenkins job to use this repository and branch, then set up a secure GitHub webhook if Jenkins is reachable from GitHub. Start with `DEPLOY_ENV=none`; only enable publishing/deployment after the test and scan stages pass. The frontend lint stage may expose existing application issues that must be fixed rather than bypassed.
+Configure the Jenkins job to use this repository and branch, then set up a secure GitHub webhook if Jenkins is reachable from GitHub. Start with `PUBLISH_IMAGES=false`; only publish after the test, Quality Gate, and scan stages pass. The frontend lint stage may expose existing application issues that must be fixed rather than bypassed. See [argocd/README.md](argocd/README.md) for the GitOps release workflow.
 
 ## 4. Helm chart
 
