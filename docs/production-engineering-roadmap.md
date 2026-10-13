@@ -8,9 +8,10 @@ This repository is a learning/portfolio environment. A checked-in configuration 
 2. Jenkins checks out the repository and runs backend tests/package, frontend lint/build, and static/security checks.
 3. Container images are built with immutable build tags and scanned before publication.
 4. Images are pushed to a registry using Jenkins credentials (never credentials in source files).
-5. Helm deploys to a selected Kubernetes environment only after build and scan stages pass.
-6. Smoke tests verify the rollout; a failed rollout is rolled back and investigated.
-7. Prometheus/Grafana and logs provide service and infrastructure visibility.
+5. A reviewed GitOps change updates the immutable image tags in the Helm values file.
+6. Argo CD reconciles the desired state into Kubernetes; Jenkins does not deploy the same resources.
+7. Smoke tests verify the rollout; a failed rollout is investigated and rolled back by reverting the GitOps change.
+8. Prometheus/Grafana and logs provide service and infrastructure visibility.
 
 ## Upgrade workstreams
 
@@ -18,7 +19,7 @@ Status note: **[x] means the configuration/documentation has been added to this 
 
 - [x] Reproducible frontend install, Maven verification stage, and automated build checks in Jenkins
 - [x] Multi-stage backend/frontend images and non-root runtime users
-- [x] Jenkins pipeline with credential binding, immutable tags, Trivy image scanning, and optional Helm deployment
+- [x] Jenkins CI with credential binding, immutable tags, Trivy scanning, and optional image publishing; Argo CD GitOps manifests
 - [x] Helm chart with separate Killercoda and EKS values
 - [x] Kubernetes requests/limits, startup/readiness/liveness probes, and optional autoscaling
 - [x] Optional Prometheus ServiceMonitor and Prometheus/Grafana practice guide
