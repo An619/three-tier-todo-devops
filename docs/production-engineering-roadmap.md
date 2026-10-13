@@ -17,9 +17,10 @@ This repository is a learning/portfolio environment. A checked-in configuration 
 
 Status note: **[x] means the configuration/documentation has been added to this branch, not that a live deployment or every test has passed.**
 
-- [x] Reproducible frontend install, Maven verification stage, and automated build checks in Jenkins
+- [x] Reproducible frontend install, Maven verification, TaskService unit tests, and automated build checks in GitHub Actions/Jenkins
+- [x] CodeQL static security analysis for Java and TypeScript; Dependabot update PRs for npm, Maven, and GitHub Actions
 - [x] Multi-stage backend/frontend images and non-root runtime users
-- [x] Jenkins CI with credential binding, immutable tags, Trivy scanning, and optional image publishing; Argo CD GitOps manifests
+- [x] Jenkins CI with credential binding, immutable tags, Trivy scanning, CycloneDX SBOM artifacts, and optional image publishing; Argo CD GitOps manifests
 - [x] Helm chart with separate Killercoda and EKS values
 - [x] Kubernetes requests/limits, startup/readiness/liveness probes, and optional autoscaling
 - [x] Optional Prometheus ServiceMonitor and Prometheus/Grafana practice guide
