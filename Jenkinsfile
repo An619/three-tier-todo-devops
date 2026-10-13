@@ -99,13 +99,24 @@ pipeline {
             }
         }
 
-        stage('Container Vulnerability Scan') {
+        stage('Container Vulnerability Scan and SBOM') {
             steps {
-                sh '''
-                    set -eu
-                    trivy image --no-progress --exit-code 1 --severity HIGH,CRITICAL "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG"
-                    trivy image --no-progress --exit-code 1 --severity HIGH,CRITICAL "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG"
-                '''
+                script {
+                    sh 'mkdir -p reports'
+                    def backendScan = sh(
+                        script: "trivy image --no-progress --format json --output reports/backend-trivy.json --exit-code 1 --severity HIGH,CRITICAL \"${env.BACKEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\"",
+                        returnStatus: true
+                    )
+                    def frontendScan = sh(
+                        script: "trivy image --no-progress --format json --output reports/frontend-trivy.json --exit-code 1 --severity HIGH,CRITICAL \"${env.FRONTEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\"",
+                        returnStatus: true
+                    )
+                    sh "trivy image --no-progress --format cyclonedx --output reports/backend-sbom.cdx.json \"${env.BACKEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\""
+                    sh "trivy image --no-progress --format cyclonedx --output reports/frontend-sbom.cdx.json \"${env.FRONTEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\""
+                    if (backendScan != 0 || frontendScan != 0) {
+                        error('HIGH/CRITICAL container vulnerabilities detected. Review archived Trivy reports before promotion.')
+                    }
+                }
             }
         }
 
@@ -138,6 +149,7 @@ pipeline {
 
     post {
         always {
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true, fingerprint: true
             sh '''
                 if [ -n "$IMAGE_TAG" ]; then
                     docker image rm "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG" 2>/dev/null || true
