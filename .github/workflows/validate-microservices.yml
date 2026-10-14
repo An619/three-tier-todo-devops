@@ -1,0 +1,82 @@
+name: Validate microservices
+on:
+  pull_request:
+    branches: [main, upgrade/production-ready-devops]
+  push:
+    branches: [feature/microservices-migration]
+permissions:
+  contents: read
+jobs:
+  services:
+    name: Maven tests - ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [auth-service, task-service]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: services/${{ matrix.service }}/pom.xml
+      - name: Test and package service
+        run: mvn -B -f services/${{ matrix.service }}/pom.xml clean verify
+  integration:
+    name: Full stack integration smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FRONTEND_PORT: "3000"
+      AUTH_DB_ROOT_PASSWORD: ci-auth-root-password
+      AUTH_DB_PASSWORD: ci-auth-app-password
+      TASK_DB_ROOT_PASSWORD: ci-task-root-password
+      TASK_DB_PASSWORD: ci-task-app-password
+      JWT_SECRET: ci-only-jwt-secret-key-with-more-than-32-bytes
+      JWT_TTL_SECONDS: "3600"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate Compose
+        run: docker compose -f services/docker-compose.yml config --quiet
+      - name: Build and start services
+        run: docker compose -f services/docker-compose.yml up -d --build
+      - name: Wait for frontend
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            if curl --fail --silent http://localhost:3000/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Frontend did not become ready"; exit 1
+      - name: Register, authenticate, and verify task ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/auth/me -H 'Authorization: Bearer invalid')
+            if [ "$status" = "401" ]; then break; fi
+            sleep 2
+          done
+          status=$(curl -s -o /tmp/register.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"username":"ci-user-one","email":"ci-one@example.test","password":"TestPassword-123!"}' http://localhost:3000/api/auth/register)
+          test "$status" = "201"
+          token=$(jq -r .token /tmp/register.json)
+          test -n "$token" && test "$token" != "null"
+          unauth=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/tasks)
+          test "$unauth" = "401"
+          curl --fail --silent --show-error -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d '{"title":"CI-owned task","description":"ownership smoke test","priority":"high","status":"todo","category":"study"}' http://localhost:3000/api/tasks > /tmp/task.json
+          task_id=$(jq -r .id /tmp/task.json)
+          test -n "$task_id" && test "$task_id" != "null"
+          curl --fail --silent --show-error -H "Authorization: Bearer $token" http://localhost:3000/api/tasks | jq -e 'length == 1' >/dev/null
+          curl --fail --silent --show-error -H 'Content-Type: application/json' -d '{"username":"ci-user-two","email":"ci-two@example.test","password":"OtherPassword-456!"}' http://localhost:3000/api/auth/register > /tmp/register-two.json
+          token_two=$(jq -r .token /tmp/register-two.json)
+          curl --fail --silent --show-error -H "Authorization: Bearer $token_two" http://localhost:3000/api/tasks | jq -e 'length == 0' >/dev/null
+          status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token_two" "http://localhost:3000/api/tasks/$task_id")
+          test "$status" = "404"
+      - name: Diagnostics on failure
+        if: failure()
+        run: docker compose -f services/docker-compose.yml ps && docker compose -f services/docker-compose.yml logs --no-color
+      - name: Always clean up
+        if: always()
+        run: docker compose -f services/docker-compose.yml down -v --remove-orphans

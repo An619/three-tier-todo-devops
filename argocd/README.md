@@ -1,35 +1,34 @@
 # Argo CD GitOps
 
-Argo CD is the deployment controller for this project. Jenkins performs CI (tests, SonarQube, image build, Trivy scan and optional image publishing); it does **not** run `helm upgrade` or `kubectl apply` for the application. Argo CD reads the Helm chart and desired image tags from Git.
+Argo CD owns Kubernetes reconciliation. Jenkins performs CI: Maven tests for the services, SonarQube quality-gate enforcement, frontend lint/build, immutable container builds, Trivy scans, SBOM generation, and optional registry publishing. Jenkins does not run kubectl apply or helm upgrade for application delivery.
 
-## Before installing
+## Microservices application
 
-1. Ensure the chart has passed `helm lint ./helm/taskmanager -f ./helm/taskmanager/values-killercoda.yaml`.
-2. Build and scan the frontend/backend images, then publish them to a registry accessible by the cluster.
-3. Edit `helm/taskmanager/values-argocd.yaml` and set both image repositories and immutable tags to images that actually exist. Do not leave `latest` as the release tag for a real deployment.
-4. Review database persistence and secrets for your target environment. Do not commit passwords to Git; create the `taskmanager-db` Kubernetes Secret out-of-band.
-5. The Application currently tracks `upgrade/production-ready-devops`. After the upgrade PR is reviewed and merged, change `targetRevision` in `application.yaml` to `main` (or your chosen protected release branch).
+The microservices chart is helm/microservices and the dedicated Application manifest is argocd/microservices-application.yaml. It deploys frontend, auth-service, and task-service independently.
 
-## Install Argo CD
+Before syncing:
 
-Install Argo CD using its official installation instructions for your Kubernetes distribution. Then apply this application manifest:
+1. Confirm helm lint ./helm/microservices -f ./helm/microservices/values-argocd.yaml passes.
+2. Publish auth, task, and frontend images and replace all placeholder repositories/tags with immutable tags that exist.
+3. Provision separate auth and task databases and set database.auth.url and database.task.url in the values file.
+4. Create the external Secret named by chart values (default taskmanager-microservices) with auth-db-password, task-db-password, and jwt-secret. The auth and task services must use the same strong JWT secret. Never commit secret values.
+5. Review rendered manifests with helm template and manually sync only after database connectivity and Secret creation are confirmed.
+6. The Application currently tracks feature/microservices-migration for review. After the migration PR is approved and merged, change targetRevision to the protected release branch.
 
-```bash
-kubectl create namespace argocd
-# Install Argo CD into argocd first, then:
-kubectl apply -f argocd/application.yaml
+Install Argo CD using the official installation instructions for your Kubernetes distribution. After it is installed, apply the Application manifest:
+
+kubectl apply -f argocd/microservices-application.yaml
 kubectl get applications -n argocd
 kubectl get pods -n taskmanager
-```
 
-The first command alone does not install Argo CD; follow the official Argo CD installation guide before applying the Application.
+The manifest does not install Argo CD itself, provision databases, create the required Secret, or create AWS infrastructure.
 
 ## Release promotion
 
-1. Jenkins tests the source, waits for the SonarQube Quality Gate, builds images and scans them.
-2. Publish immutable image tags only after checks pass.
-3. Update the image tags in `helm/taskmanager/values-argocd.yaml` in a reviewed Git commit/PR.
-4. Argo CD detects the desired-state change and reconciles the cluster.
-5. Verify the Argo CD application health and Kubernetes rollout. Revert the GitOps commit to roll back to a previously known-good image tag.
+1. Jenkins tests and scans the source and all three images.
+2. Publish immutable tags only after all checks pass.
+3. Update all three image tags in helm/microservices/values-argocd.yaml in a reviewed Git change.
+4. Argo CD reconciles the desired state.
+5. Verify application health, rollouts, logs, and metrics. Roll back by reverting the reviewed GitOps image-tag change.
 
-For a team workflow, protect the release branch and require reviews for image-tag changes. Keep Jenkins credentials, kubeconfigs and application passwords in the relevant secret stores, never in Git.
+Keep Jenkins credentials, kubeconfigs, database passwords, and JWT secrets in secret stores, never in Git.

@@ -1,26 +1,26 @@
-# Three-Tier Todo — DevOps Engineering Lab
+# Task Manager Microservices — DevOps Engineering Lab
 
-A React/Vite frontend, Spring Boot REST API, and MySQL database used to practise a realistic DevOps delivery workflow. This is a **three-tier application, not a microservices application**: the backend is one Spring Boot service. This repository is based on the application from [17J/Three-Tier-Todo-Application](https://github.com/17J/Three-Tier-Todo-Application), with a separate DevOps engineering upgrade branch.
+The migration branch separates the React frontend, Spring Boot authentication service, and Spring Boot task service. Authentication and task data use separate MySQL databases. The older backend module remains temporarily for reference and backward-compatibility during migration; the canonical local stack is the root Compose file, which runs the microservices stack.
 
-> **Status:** the `upgrade/production-ready-devops` branch contains a proposed upgrade that still needs runtime validation. Do not describe it as production-ready until the build, security gates, deployment, monitoring, rollback, and recovery exercises have actually passed.
+> **Status:** microservices migration is in progress. CI tests and local Compose integration checks are required before calling it complete or production-ready. The Kubernetes chart expects separately provisioned databases and an external Secret; no AWS resources have been created.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Dev[Developer] -->|Git push| GH[GitHub]
-    GH -->|Webhook| J[Jenkins]
-    J --> T[Maven tests + SonarQube Quality Gate]
-    T --> B[Build Docker images]
-    B --> S[Trivy vulnerability scan]
-    S --> R[Docker Hub]
-    R -->|Reviewed image-tag change in Git| A[Argo CD]
-    A -->|Sync Helm desired state| K[Kubernetes: Killercoda or EKS]
-    K --> F[Frontend: Nginx]
-    F --> API[Spring Boot API]
-    API --> DB[(MySQL)]
-    API --> M[Prometheus metrics]
-    M --> G[Grafana dashboards]
+    Dev[Developer] --> GH[GitHub]
+    GH --> J[Jenkins / GitHub Actions]
+    J --> T[Tests + SonarQube + Trivy + SBOM]
+    T --> R[Immutable service images]
+    R --> A[Argo CD + Helm]
+    A --> K[Kubernetes]
+    K --> UI[React / Nginx]
+    UI --> AUTH[Auth service]
+    UI --> TASK[Task service]
+    AUTH --> UDB[(Auth database)]
+    TASK --> TDB[(Task database)]
+    AUTH --> M[Metrics]
+    TASK --> M
 ```
 
 ## What the upgrade adds
@@ -37,15 +37,19 @@ flowchart LR
 ## Repository layout
 
 ```text
-backend/                       Spring Boot API and Dockerfile
-frontend/                      React/Vite UI, Nginx config and Dockerfile
-docker-compose.yml             Local three-tier stack
+backend/                       Legacy Spring Boot API retained during migration
+frontend/                      React/Vite UI and microservices-aware Nginx image
+services/auth-service/         Registration/login, BCrypt, signed JWTs
+services/task-service/         Owner-scoped task API and JWT validation
+services/docker-compose.yml    Standalone microservices Compose stack
+docker-compose.yml             Canonical local microservices stack
 Jenkinsfile                    Jenkins CI pipeline
 argocd/                        Argo CD Application and GitOps guide
 sonar-project.properties       SonarQube source configuration
 .github/workflows/             Validation and CodeQL security workflows
 .github/dependabot.yml          Automated dependency update PRs
-helm/taskmanager/              Helm chart and Killercoda/EKS values
+helm/taskmanager/              Legacy three-tier chart during migration
+helm/microservices/            Frontend/auth/task service chart
 terraform/eks/                 Terraform VPC/EKS lab scaffold
 monitoring/                    Prometheus/Grafana practice guide
 docs/                          Setup guides, roadmap and runbooks
@@ -55,30 +59,28 @@ azure-pipelines.yml             Legacy pipeline example
 
 ## 1. Local validation with Docker Compose
 
-Requirements: Git and Docker. Docker Compose v2 is preferred; on Killercoda, use `docker-compose` if the `docker compose` plugin is unavailable.
+Requirements: Git, Docker, and Docker Compose v2.
 
 ```bash
-git clone --branch upgrade/production-ready-devops --single-branch https://github.com/An619/three-tier-todo-devops.git
+git clone --branch feature/microservices-migration --single-branch https://github.com/An619/three-tier-todo-devops.git
 cd three-tier-todo-devops
-
 cp .env.example .env
-# Edit .env and set unique values for MYSQL_ROOT_PASSWORD and MYSQL_APP_PASSWORD
-docker-compose config
-docker-compose up -d --build
-docker-compose ps
-curl -fsS http://localhost:8085/actuator/health
+# Replace every example password and JWT secret with unique random values.
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
 curl -I http://localhost:3000
 ```
 
-Open `http://localhost:3000` for the UI. API calls go through Nginx to the backend service. Compose refuses to start until you set explicit database passwords in the ignored local `.env` file. Never commit `.env`.
+Open `http://localhost:3000`, register a new account, and create tasks. Nginx routes `/api/auth/**` and `/api/tasks/**` to separate services. The task API requires a bearer token and scopes records to the authenticated email. Compose refuses to start without explicit database passwords and a JWT secret in the ignored local `.env` file. Never commit `.env`.
 
 Useful commands:
 
 ```bash
-docker-compose logs -f
-docker-compose logs -f backend
-docker-compose logs -f mysql
-docker-compose down
+docker compose logs -f
+docker compose logs -f auth-service
+docker compose logs -f task-service
+docker compose down
 ```
 
 Only use `docker-compose down -v` when you intentionally want to delete the local MySQL volume and all data stored in it.
@@ -110,12 +112,12 @@ Configure the Jenkins job to use this repository and branch, then set up a secur
 
 ## 4. Helm chart
 
-Chart path: `helm/taskmanager`.
+Microservices chart path: `helm/microservices`. The legacy chart at `helm/taskmanager` remains during migration.
 
 - `values-killercoda.yaml` — low-footprint, disposable lab configuration.
 - `values-eks.yaml` — ALB Ingress, autoscaling, and persistent database storage; requires AWS Load Balancer Controller, metrics-server, and EBS CSI support.
 
-The chart expects a Secret named `taskmanager-db` with keys `mysql-root-password`, `db-username`, and `db-password`. Do not commit these values. See the deployment guide for safe setup.
+The microservices chart expects separately provisioned auth/task databases and a Secret named `taskmanager-microservices` with keys `auth-db-password`, `task-db-password`, and `jwt-secret`. Do not commit secret values. Replace image placeholders and set database JDBC URLs before Argo CD sync.
 
 ## 5. Terraform and AWS EKS
 

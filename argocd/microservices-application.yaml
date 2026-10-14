@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: taskmanager-microservices
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: three-tier-todo-devops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/An619/three-tier-todo-devops.git
+    targetRevision: feature/microservices-migration
+    path: helm/microservices
+    helm:
+      valueFiles:
+        - values-argocd.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: taskmanager
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
