@@ -1,27 +1,20 @@
 pipeline {
     agent any
-
     options {
         timestamps()
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
-        timeout(time: 45, unit: 'MINUTES')
+        timeout(time: 60, unit: 'MINUTES')
     }
-
     parameters {
-        booleanParam(
-            name: 'PUBLISH_IMAGES',
-            defaultValue: false,
-            description: 'Push successfully tested and scanned immutable images to Docker Hub.'
-        )
+        booleanParam(name: 'PUBLISH_IMAGES', defaultValue: false, description: 'Push tested and scanned immutable service images to Docker Hub.')
     }
-
     environment {
-        BACKEND_LOCAL_IMAGE = 'three-tier-todo-backend'
+        AUTH_LOCAL_IMAGE = 'three-tier-todo-auth-service'
+        TASK_LOCAL_IMAGE = 'three-tier-todo-task-service'
         FRONTEND_LOCAL_IMAGE = 'three-tier-todo-frontend'
         IMAGE_TAG = ''
     }
-
     stages {
         stage('Checkout') {
             steps {
@@ -33,7 +26,6 @@ pipeline {
                 }
             }
         }
-
         stage('Validate Toolchain') {
             steps {
                 sh '''
@@ -48,15 +40,16 @@ pipeline {
                 '''
             }
         }
-
-        stage('Backend Tests') {
+        stage('Backend and Service Tests') {
             steps {
-                dir('backend') {
-                    sh 'mvn -B clean verify'
-                }
+                sh '''
+                    set -eu
+                    mvn -B -f backend/pom.xml clean verify
+                    mvn -B -f services/auth-service/pom.xml clean verify
+                    mvn -B -f services/task-service/pom.xml clean verify
+                '''
             }
         }
-
         stage('SonarQube Analysis') {
             steps {
                 script {
@@ -67,7 +60,6 @@ pipeline {
                 }
             }
         }
-
         stage('SonarQube Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -75,7 +67,6 @@ pipeline {
                 }
             }
         }
-
         stage('Frontend Quality and Build') {
             steps {
                 dir('frontend') {
@@ -88,80 +79,59 @@ pipeline {
                 }
             }
         }
-
-        stage('Build Container Images') {
+        stage('Build Microservices Images') {
             steps {
                 sh '''
                     set -eu
-                    docker build --pull -t "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG" ./backend
-                    docker build --pull -t "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG" ./frontend
+                    docker build --pull -t "$AUTH_LOCAL_IMAGE:$IMAGE_TAG" ./services/auth-service
+                    docker build --pull -t "$TASK_LOCAL_IMAGE:$IMAGE_TAG" ./services/task-service
+                    docker build --pull -f frontend/Dockerfile.microservices -t "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG" .
                 '''
             }
         }
-
         stage('Container Vulnerability Scan and SBOM') {
             steps {
-                script {
-                    sh 'mkdir -p reports'
-                    def backendScan = sh(
-                        script: "trivy image --no-progress --format json --output reports/backend-trivy.json --exit-code 1 --severity HIGH,CRITICAL \"${env.BACKEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\"",
-                        returnStatus: true
-                    )
-                    def frontendScan = sh(
-                        script: "trivy image --no-progress --format json --output reports/frontend-trivy.json --exit-code 1 --severity HIGH,CRITICAL \"${env.FRONTEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\"",
-                        returnStatus: true
-                    )
-                    sh "trivy image --no-progress --format cyclonedx --output reports/backend-sbom.cdx.json \"${env.BACKEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\""
-                    sh "trivy image --no-progress --format cyclonedx --output reports/frontend-sbom.cdx.json \"${env.FRONTEND_LOCAL_IMAGE}:${env.IMAGE_TAG}\""
-                    if (backendScan != 0 || frontendScan != 0) {
-                        error('HIGH/CRITICAL container vulnerabilities detected. Review archived Trivy reports before promotion.')
-                    }
-                }
+                sh '''
+                    set -eu
+                    mkdir -p reports
+                    trivy image --no-progress --format json --output reports/auth-trivy.json --exit-code 1 --severity HIGH,CRITICAL "$AUTH_LOCAL_IMAGE:$IMAGE_TAG"
+                    trivy image --no-progress --format json --output reports/task-trivy.json --exit-code 1 --severity HIGH,CRITICAL "$TASK_LOCAL_IMAGE:$IMAGE_TAG"
+                    trivy image --no-progress --format json --output reports/frontend-trivy.json --exit-code 1 --severity HIGH,CRITICAL "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG"
+                    trivy image --no-progress --format cyclonedx --output reports/auth-sbom.cdx.json "$AUTH_LOCAL_IMAGE:$IMAGE_TAG"
+                    trivy image --no-progress --format cyclonedx --output reports/task-sbom.cdx.json "$TASK_LOCAL_IMAGE:$IMAGE_TAG"
+                    trivy image --no-progress --format cyclonedx --output reports/frontend-sbom.cdx.json "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG"
+                '''
             }
         }
-
         stage('Publish Immutable Images') {
-            when {
-                expression { return params.PUBLISH_IMAGES }
-            }
+            when { expression { return params.PUBLISH_IMAGES } }
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USERNAME',
-                    passwordVariable: 'DOCKER_PASSWORD'
-                )]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                     sh '''
                         set +x
                         set -eu
                         trap 'docker logout >/dev/null 2>&1 || true' EXIT
                         echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
-                        docker tag "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG" "$DOCKER_USERNAME/$BACKEND_LOCAL_IMAGE:$IMAGE_TAG"
-                        docker tag "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG" "$DOCKER_USERNAME/$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG"
-                        docker push "$DOCKER_USERNAME/$BACKEND_LOCAL_IMAGE:$IMAGE_TAG"
-                        docker push "$DOCKER_USERNAME/$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG"
+                        for image in "$AUTH_LOCAL_IMAGE" "$TASK_LOCAL_IMAGE" "$FRONTEND_LOCAL_IMAGE"; do
+                          docker tag "$image:$IMAGE_TAG" "$DOCKER_USERNAME/$image:$IMAGE_TAG"
+                          docker push "$DOCKER_USERNAME/$image:$IMAGE_TAG"
+                        done
                     '''
                 }
-                echo 'Images published with immutable build-and-commit tags.'
-                echo 'Promote by updating helm/taskmanager/values-argocd.yaml in a reviewed Git commit or pull request.'
+                echo 'Images published with immutable build-and-commit tags. Promote them through a reviewed Helm values change; Argo CD owns delivery.'
             }
         }
     }
-
     post {
         always {
             archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true, fingerprint: true
             sh '''
-                if [ -n "$IMAGE_TAG" ]; then
-                    docker image rm "$BACKEND_LOCAL_IMAGE:$IMAGE_TAG" 2>/dev/null || true
-                    docker image rm "$FRONTEND_LOCAL_IMAGE:$IMAGE_TAG" 2>/dev/null || true
-                fi
+                for image in "$AUTH_LOCAL_IMAGE" "$TASK_LOCAL_IMAGE" "$FRONTEND_LOCAL_IMAGE"; do
+                  if [ -n "$IMAGE_TAG" ]; then docker image rm "$image:$IMAGE_TAG" 2>/dev/null || true; fi
+                done
             '''
         }
-        success {
-            echo 'CI pipeline completed. Argo CD owns Kubernetes delivery; promote only a validated image tag through Git.'
-        }
-        failure {
-            echo 'Pipeline failed. Inspect the first failing stage and preserve logs before retrying.'
-        }
+        success { echo 'Microservices CI passed. Kubernetes delivery remains a separate Argo CD GitOps operation.' }
+        failure { echo 'Pipeline failed. Inspect the first failing stage and archived reports before retrying.' }
     }
 }
