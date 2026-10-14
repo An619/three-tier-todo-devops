@@ -50,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
       - name: Lint Killercoda values
         run: helm lint ./helm/taskmanager -f ./helm/taskmanager/values-killercoda.yaml
       - name: Lint Argo CD values
