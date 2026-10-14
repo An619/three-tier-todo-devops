@@ -15,7 +15,7 @@ jobs:
       matrix:
         service: [auth-service, task-service]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -37,7 +37,7 @@ jobs:
       JWT_SECRET: ci-only-jwt-secret-key-with-more-than-32-bytes
       JWT_TTL_SECONDS: "3600"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Validate Compose
         run: docker compose -f services/docker-compose.yml config --quiet
       - name: Build and start services
