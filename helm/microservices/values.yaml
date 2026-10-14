@@ -1,0 +1,22 @@
+replicaCount: { frontend: 2, auth: 2, task: 2 }
+image:
+  frontend: { repository: YOUR_DOCKERHUB_USERNAME/three-tier-todo-frontend, tag: REPLACE_WITH_VALIDATED_TAG, pullPolicy: IfNotPresent }
+  auth: { repository: YOUR_DOCKERHUB_USERNAME/three-tier-todo-auth-service, tag: REPLACE_WITH_VALIDATED_TAG, pullPolicy: IfNotPresent }
+  task: { repository: YOUR_DOCKERHUB_USERNAME/three-tier-todo-task-service, tag: REPLACE_WITH_VALIDATED_TAG, pullPolicy: IfNotPresent }
+service:
+  frontend: { port: 80, targetPort: 8080 }
+  auth: { port: 8081, targetPort: 8081 }
+  task: { port: 8080, targetPort: 8080 }
+database:
+  auth:
+    url: jdbc:mysql://auth-mysql:3306/authdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: authapp
+  task:
+    url: jdbc:mysql://task-mysql:3306/taskdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: taskapp
+secrets: { name: taskmanager-microservices, authPasswordKey: auth-db-password, taskPasswordKey: task-db-password, jwtSecretKey: jwt-secret }
+resources:
+  frontend: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 250m, memory: 256Mi } }
+  auth: { requests: { cpu: 150m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+  task: { requests: { cpu: 150m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+ingress: { enabled: false, className: alb, host: "", annotations: {} }
