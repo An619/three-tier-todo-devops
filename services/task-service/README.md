@@ -1,22 +1,11 @@
 # Task Service
 
-Extracted Spring Boot task API, currently exposing `/api/tasks` and actuator health endpoints.
+Independent Spring Boot task API exposing /api/tasks and actuator health endpoints. It validates JWTs using the shared secret configured for auth-service and stores an owner email on each new task. The owner is derived from the verified token, never from the request body.
 
-## Run independently
+## Run
 
-From the repository root:
+From the repository root, copy .env.example to .env, set unique values for AUTH_DB_ROOT_PASSWORD, AUTH_DB_PASSWORD, TASK_DB_ROOT_PASSWORD, TASK_DB_PASSWORD, and a random JWT_SECRET of at least 32 characters, then run:
 
-```bash
-export MYSQL_ROOT_PASSWORD='change-this-local-root-password'
-export MYSQL_APP_PASSWORD='change-this-local-app-password'
-docker compose -f services/docker-compose.yml up --build
-```
+docker compose up --build
 
-- Task API: http://localhost:8085/api/tasks
-- Health: http://localhost:8085/actuator/health
-
-The extraction preserves the legacy API contract to make the later frontend cutover safer.
-
-## Important limitation
-
-The extracted API does not yet enforce authenticated per-user ownership. Keep it local to a trusted development network only until the auth/token and ownership migration gates in `../README.md` are complete.
+The UI is at http://localhost:3000. The task API is intentionally not published directly to the host; requests go through Nginx and require a bearer token. Existing legacy task rows without an owner are not returned to any account.

@@ -1,109 +1,50 @@
-# Killercoda Practice Guide
+# Killercoda Microservices Practice Guide
 
-This is the first target environment. It is intentionally disposable; the EKS values and cloud resources are a later phase.
+Use Killercoda first. This is a disposable learning environment; no AWS resources are created by the local steps.
 
-## A. Verify the repository and build images
+## A. Run the complete microservices stack
 
-Clone the upgrade branch:
+Clone the migration branch:
 
-```bash
-git clone --branch upgrade/production-ready-devops --single-branch https://github.com/An619/three-tier-todo-devops.git
+git clone --branch feature/microservices-migration --single-branch https://github.com/An619/three-tier-todo-devops.git
 cd three-tier-todo-devops
-```
 
-Run the local three-tier stack first:
+Copy .env.example to .env, replace all sample database passwords with unique values, and set JWT_SECRET to a strong random value of at least 32 characters. Keep .env out of Git.
 
-```bash
-cp .env.example .env
-# Edit .env and set unique values for MYSQL_ROOT_PASSWORD and MYSQL_APP_PASSWORD
-docker-compose config
-docker-compose up -d --build
-docker-compose ps
-curl -fsS http://localhost:8085/actuator/health
-curl -I http://localhost:3000
-```
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
 
-Open port 3000 for the UI. Compose requires explicit database passwords in the local `.env` file and does not provide weak defaults. Keep `.env` out of Git. To stop the stack, run `docker-compose down`. To also delete the local database volume, run `docker-compose down -v` (this permanently deletes its data).
+Open http://localhost:3000, register a new account, and create tasks. Nginx routes auth and task requests to separate services. The task API rejects unauthenticated requests and scopes task records to the authenticated user.
 
-## B. Build and publish images for Kubernetes
+Useful diagnostics:
 
-Use your own Docker Hub username and a unique tag. Do not type a token into source files.
+docker compose logs -f auth-service
+docker compose logs -f task-service
+docker compose logs -f frontend
+docker compose down
 
-```bash
-export DOCKERHUB_USERNAME="YOUR_DOCKERHUB_USERNAME"
-export IMAGE_TAG="lab-1"
-docker login
-docker build -t "$DOCKERHUB_USERNAME/three-tier-todo-backend:$IMAGE_TAG" ./backend
-docker build -t "$DOCKERHUB_USERNAME/three-tier-todo-frontend:$IMAGE_TAG" ./frontend
-docker push "$DOCKERHUB_USERNAME/three-tier-todo-backend:$IMAGE_TAG"
-docker push "$DOCKERHUB_USERNAME/three-tier-todo-frontend:$IMAGE_TAG"
-```
+Use docker compose down -v only when you intentionally want to delete local database data.
 
-Use a Docker Hub access token as the password. Keep the tag consistent for both images.
+## B. Validate service security and ownership
 
-## C. Deploy using Helm
+The GitHub Actions microservices workflow performs the integration checks: registration, token issuance, rejecting an unauthenticated task request, creating a task, and verifying that a second account cannot read the first account's task. Re-run these tests after any changes to authentication or task ownership.
 
-Check the cluster first:
+## C. Kubernetes / Helm
 
-```bash
-kubectl get nodes
-helm version
-helm lint ./helm/taskmanager -f ./helm/taskmanager/values-killercoda.yaml
-```
+Chart: helm/microservices. It deploys frontend, auth-service, and task-service separately. The chart intentionally expects external auth/task databases and an external Kubernetes Secret; it does not install MySQL in Kubernetes.
 
-Create a dedicated namespace and a Kubernetes Secret. Replace the sample values locally; never commit them:
+Before installation:
 
-```bash
-kubectl create namespace taskmanager --dry-run=client -o yaml | kubectl apply -f -
-kubectl create secret generic taskmanager-db -n taskmanager \
-  --from-literal=mysql-root-password='REPLACE_WITH_A_STRONG_LAB_PASSWORD' \
-  --from-literal=db-username='taskapp' \
-  --from-literal=db-password='REPLACE_WITH_A_DIFFERENT_STRONG_LAB_PASSWORD'
-```
+1. Build and publish the three images with immutable tags.
+2. Provision separate reachable databases for auth and tasks.
+3. Set database.auth.url and database.task.url in a reviewed values file.
+4. Create the Secret named by secrets.name (default taskmanager-microservices) with keys auth-db-password, task-db-password, and jwt-secret. The JWT secret must match for both services.
+5. Replace image placeholders in values and run helm lint ./helm/microservices -f ./helm/microservices/values-argocd.yaml.
+6. Review helm template output, then install or sync only after the external database endpoints and Secret exist.
 
-If the Secret already exists, use `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -` to update it. Avoid putting real passwords in shell history; Jenkins should use its credential store.
+Do not paste real secrets into Git or public chat. For a Killercoda-only experiment, use temporary random lab credentials and clean up all resources at the end.
 
-Install the release:
+## D. AWS caution
 
-```bash
-helm upgrade --install todo ./helm/taskmanager \
-  --namespace taskmanager \
-  -f ./helm/taskmanager/values-killercoda.yaml \
-  --set image.backend.repository="$DOCKERHUB_USERNAME/three-tier-todo-backend" \
-  --set image.backend.tag="$IMAGE_TAG" \
-  --set image.frontend.repository="$DOCKERHUB_USERNAME/three-tier-todo-frontend" \
-  --set image.frontend.tag="$IMAGE_TAG" \
-  --wait --timeout 10m
-```
-
-Check resources and events:
-
-```bash
-kubectl get pods,deployments,services,pvc -n taskmanager -o wide
-kubectl get events -n taskmanager --sort-by=.lastTimestamp
-kubectl logs deployment/todo-taskmanager-backend -n taskmanager
-kubectl logs deployment/todo-taskmanager-mysql -n taskmanager
-```
-
-If Pods are ready, forward the frontend Service and use Killercoda's web preview for port 8080:
-
-```bash
-kubectl port-forward -n taskmanager svc/todo-taskmanager-frontend 8080:80
-```
-
-If the chart's service or deployment names differ after changing the Helm release name, confirm actual names with `kubectl get svc,deploy -n taskmanager`.
-
-## D. Clean up
-
-```bash
-helm uninstall todo -n taskmanager
-kubectl delete namespace taskmanager
-```
-
-The namespace deletion removes its resources. In the Killercoda values, MySQL uses ephemeral storage, so its data is intentionally not durable.
-
-## Important limits
-
-- This guide has not yet been executed end-to-end in a live Killercoda session. Validate each step and retain the actual output.
-- The EKS values require AWS Load Balancer Controller, metrics-server, suitable IAM/networking, and persistent storage. EKS can incur charges; do not deploy it until you have a cost/cleanup plan.
-- The Helm chart expects the database Secret keys `mysql-root-password`, `db-username`, and `db-password`.
+Do not create EKS just to validate this migration. EKS, EC2, NAT Gateway, EBS, ALB, public IPv4 addresses, and data transfer may incur charges. First prove the local Compose stack and Helm rendering; then make a cost/cleanup plan before using AWS.
