@@ -15,7 +15,7 @@ jobs:
     name: Backend Maven tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -28,7 +28,7 @@ jobs:
     name: Frontend lint and build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
@@ -48,7 +48,7 @@ jobs:
     name: Helm chart validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install Helm
         uses: azure/setup-helm@v4
       - name: Lint Killercoda values
@@ -65,7 +65,7 @@ jobs:
       run:
         working-directory: terraform/eks
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
       - name: Check formatting
         run: terraform fmt -diff -check -recursive
@@ -87,7 +87,7 @@ jobs:
       JWT_SECRET: ci-only-jwt-secret-key-with-more-than-32-bytes
       JWT_TTL_SECONDS: "3600"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Validate Compose configuration
         run: docker compose config --quiet
       - name: Build and start microservices stack
