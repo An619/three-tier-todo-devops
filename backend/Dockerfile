@@ -1,12 +1,17 @@
+FROM maven:3.9-eclipse-temurin-17-alpine AS build
+WORKDIR /workspace
 
-FROM maven:3.9.5-eclipse-temurin-17-alpine as build
-WORKDIR /app
 COPY pom.xml .
-COPY src src
-RUN mvn clean package -DskipTests
+COPY src ./src
+RUN mvn -B -DskipTests package
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-COPY --from=build /app/target/task-manager-0.0.1-SNAPSHOT.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+RUN apk add --no-cache wget && addgroup -S app && adduser -S -G app app
+COPY --from=build --chown=app:app /workspace/target/task-manager-0.0.1-SNAPSHOT.jar /app/app.jar
+
+USER app
+EXPOSE 8085
+ENV JAVA_OPTS=""
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

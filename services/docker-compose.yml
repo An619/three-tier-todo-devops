@@ -1,0 +1,88 @@
+name: task-manager-microservices
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile.microservices
+    ports: ["${FRONTEND_PORT:-3000}:8080"]
+    depends_on:
+      auth-service: { condition: service_healthy }
+      task-service: { condition: service_healthy }
+    networks: [app-network]
+    restart: unless-stopped
+  auth-service:
+    build: ./auth-service
+    environment:
+      SERVER_PORT: "8081"
+      SPRING_DATASOURCE_URL: jdbc:mysql://auth-mysql:3306/authdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: authapp
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:?Set AUTH_DB_PASSWORD in the environment}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random secret of at least 32 characters}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
+    depends_on:
+      auth-mysql: { condition: service_healthy }
+    networks: [app-network, auth-data]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/actuator/health | grep -q 'UP'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+  task-service:
+    build: ./task-service
+    environment:
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:mysql://task-mysql:3306/taskdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: taskapp
+      SPRING_DATASOURCE_PASSWORD: ${TASK_DB_PASSWORD:?Set TASK_DB_PASSWORD in the environment}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a random secret of at least 32 characters}
+    depends_on:
+      task-mysql: { condition: service_healthy }
+    networks: [app-network, task-data]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q 'UP'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+  auth-mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${AUTH_DB_ROOT_PASSWORD:?Set AUTH_DB_ROOT_PASSWORD in the environment}
+      MYSQL_DATABASE: authdb
+      MYSQL_USER: authapp
+      MYSQL_PASSWORD: ${AUTH_DB_PASSWORD:?Set AUTH_DB_PASSWORD in the environment}
+    volumes: [auth-mysql-data:/var/lib/mysql]
+    networks: [auth-data]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+  task-mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${TASK_DB_ROOT_PASSWORD:?Set TASK_DB_ROOT_PASSWORD in the environment}
+      MYSQL_DATABASE: taskdb
+      MYSQL_USER: taskapp
+      MYSQL_PASSWORD: ${TASK_DB_PASSWORD:?Set TASK_DB_PASSWORD in the environment}
+    volumes: [task-mysql-data:/var/lib/mysql]
+    networks: [task-data]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+networks:
+  app-network: {}
+  auth-data: { internal: true }
+  task-data: { internal: true }
+volumes:
+  auth-mysql-data: {}
+  task-mysql-data: {}

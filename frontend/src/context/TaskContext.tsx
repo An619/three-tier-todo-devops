@@ -1,6 +1,5 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { Task, Priority, Status, Category, TaskResponse } from '../types/task';
-import { sampleTasks, generateId } from '../utils/taskUtils';
 import { toast } from 'sonner';
 import { taskApi } from '@/services/api';
 
@@ -15,9 +14,7 @@ interface TaskContextType {
   filterTasks: (status?: Status, priority?: Priority, category?: Category, searchTerm?: string) => Task[];
   refreshTasks: () => Promise<void>;
 }
-
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
-
 const convertResponseToTask = (response: TaskResponse): Task => ({
   id: response.id,
   title: response.title,
@@ -30,166 +27,109 @@ const convertResponseToTask = (response: TaskResponse): Task => ({
 });
 
 export const TaskProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [tasks, setTasks] = useState<Task[]>(sampleTasks);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isApiEnabled, setIsApiEnabled] = useState<boolean>(false);
 
-  const refreshTasks = async () => {
-    if (!isApiEnabled) return;
-    
+  const refreshTasks = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
     try {
       const response = await taskApi.getAllTasks();
-      const convertedTasks = response.map(convertResponseToTask);
-      setTasks(convertedTasks);
+      setTasks(response.map(convertResponseToTask));
     } catch (err) {
-      console.error('Failed to fetch tasks:', err);
-      setError('Failed to fetch tasks. Using sample data instead.');
-      setTasks(sampleTasks);
+      console.error('Failed to fetch tasks from task-service:', err);
+      setError('Unable to load tasks from the task service. Check service health and sign in again if your session expired.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshTasks().catch(() => undefined);
+  }, [refreshTasks]);
+
+  const addTask = async (task: Omit<Task, 'id' | 'createdAt'>) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const dueDate = task.dueDate ? task.dueDate.toISOString() : undefined;
+      const response = await taskApi.createTask({ ...task, dueDate });
+      setTasks(prev => [convertResponseToTask(response), ...prev]);
+      toast.success('Task created successfully');
+    } catch (err) {
+      setError('Task could not be saved by the task service.');
+      toast.error('Failed to create task');
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const checkApiAvailability = async () => {
-      try {
-        await taskApi.getAllTasks();
-        setIsApiEnabled(true);
-        refreshTasks();
-      } catch (err) {
-        console.log('API not available, using local data');
-        setTasks(sampleTasks);
-      }
-    };
-
-    checkApiAvailability();
-  }, []);
-
-  const addTask = async (task: Omit<Task, 'id' | 'createdAt'>) => {
-    if (isApiEnabled) {
-      setLoading(true);
-      try {
-        const dueDate = task.dueDate ? task.dueDate.toISOString() : undefined;
-        const response = await taskApi.createTask({
-          ...task,
-          dueDate,
-        });
-        const newTask = convertResponseToTask(response);
-        setTasks(prev => [newTask, ...prev]);
-        toast.success('Task created successfully');
-      } catch (err) {
-        toast.error('Failed to create task');
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      const newTask: Task = {
-        ...task,
-        id: generateId(),
-        createdAt: new Date()
-      };
-      setTasks(prev => [newTask, ...prev]);
-      toast.success('Task created successfully');
-    }
-  };
-
   const updateTask = async (updatedTask: Task) => {
-    if (isApiEnabled) {
-      setLoading(true);
-      try {
-        const dueDate = updatedTask.dueDate ? updatedTask.dueDate.toISOString() : undefined;
-        await taskApi.updateTask({
-          id: updatedTask.id,
-          title: updatedTask.title,
-          description: updatedTask.description,
-          priority: updatedTask.priority,
-          status: updatedTask.status,
-          category: updatedTask.category,
-          dueDate,
-        });
-        setTasks(prev => 
-          prev.map(task => task.id === updatedTask.id ? updatedTask : task)
-        );
-        toast.success('Task updated successfully');
-      } catch (err) {
-        toast.error('Failed to update task');
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setTasks(prev => 
-        prev.map(task => task.id === updatedTask.id ? updatedTask : task)
-      );
+    setLoading(true);
+    setError(null);
+    try {
+      const dueDate = updatedTask.dueDate ? updatedTask.dueDate.toISOString() : undefined;
+      const response = await taskApi.updateTask({
+        id: updatedTask.id,
+        title: updatedTask.title,
+        description: updatedTask.description,
+        priority: updatedTask.priority,
+        status: updatedTask.status,
+        category: updatedTask.category,
+        dueDate,
+      });
+      const converted = convertResponseToTask(response);
+      setTasks(prev => prev.map(task => task.id === converted.id ? converted : task));
       toast.success('Task updated successfully');
+    } catch (err) {
+      setError('Task could not be updated by the task service.');
+      toast.error('Failed to update task');
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
   const deleteTask = async (id: string) => {
-    if (isApiEnabled) {
-      setLoading(true);
-      try {
-        await taskApi.deleteTask(id);
-        setTasks(prev => prev.filter(task => task.id !== id));
-        toast.success('Task deleted successfully');
-      } catch (err) {
-        toast.error('Failed to delete task');
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    } else {
+    setLoading(true);
+    setError(null);
+    try {
+      await taskApi.deleteTask(id);
       setTasks(prev => prev.filter(task => task.id !== id));
       toast.success('Task deleted successfully');
+    } catch (err) {
+      setError('Task could not be deleted by the task service.');
+      toast.error('Failed to delete task');
+      throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getTask = (id: string) => {
-    return tasks.find(task => task.id === id);
-  };
-
-  const filterTasks = (
-    status?: Status, 
-    priority?: Priority, 
-    category?: Category, 
-    searchTerm?: string
-  ) => {
-    return tasks.filter(task => {
+  const getTask = (id: string) => tasks.find(task => task.id === id);
+  const filterTasks = (status?: Status, priority?: Priority, category?: Category, searchTerm?: string) =>
+    tasks.filter(task => {
       const matchesStatus = !status || task.status === status;
       const matchesPriority = !priority || task.priority === priority;
       const matchesCategory = !category || task.category === category;
-      const matchesSearch = !searchTerm || 
-        task.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      const matchesSearch = !searchTerm ||
+        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
-      
       return matchesStatus && matchesPriority && matchesCategory && matchesSearch;
     });
-  };
 
-  const value = {
-    tasks,
-    loading,
-    error,
-    addTask,
-    updateTask,
-    deleteTask,
-    getTask,
-    filterTasks,
-    refreshTasks
-  };
-
-  return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
+  return (
+    <TaskContext.Provider value={{ tasks, loading, error, addTask, updateTask, deleteTask, getTask, filterTasks, refreshTasks }}>
+      {children}
+    </TaskContext.Provider>
+  );
 };
 
 export const useTaskContext = (): TaskContextType => {
   const context = useContext(TaskContext);
-  if (context === undefined) {
-    throw new Error('useTaskContext must be used within a TaskProvider');
-  }
+  if (context === undefined) throw new Error('useTaskContext must be used within a TaskProvider');
   return context;
 };

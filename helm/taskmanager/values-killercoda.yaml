@@ -1,0 +1,17 @@
+# For disposable Killercoda labs only. Database data is lost when its Pod is recreated.
+mysql:
+  persistence:
+    enabled: false
+
+replicaCount:
+  frontend: 1
+  backend: 1
+
+autoscaling:
+  frontend:
+    enabled: false
+  backend:
+    enabled: false
+
+ingress:
+  enabled: false
